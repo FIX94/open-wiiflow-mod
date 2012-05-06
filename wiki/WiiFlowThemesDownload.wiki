@@ -1,0 +1,9 @@
+#summary Link to download WiiFlow themes.
+
+=*WiiFlow Themes*=
+
+Click the link below to download the latest WiiFlow themes pack.
+
+http://www.mediafire.com/?geg0zevcu5tysz0
+
+currently work with r245+
