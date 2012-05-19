@@ -40,6 +40,7 @@
 #include "vba/gba/Sound.h"
 
 #include "homebrew.h"
+#define TITLE_ID(x,y) (((u64)(x) << 32) | (y))
 
 extern "C" {
 extern void __exception_setreload(int t);
@@ -80,6 +81,8 @@ static void ExitCleanup()
 
 void ExitToWiiflow()
 {
+	WII_LaunchTitle(TITLE_ID(0x00010008,0x57494948));
+
 	LoadHomebrew(GCSettings.Exit_Dol_File);
 	AddBootArgument(GCSettings.Exit_Dol_File);
 	AddBootArgument("EMULATOR_MAGIC");
@@ -405,12 +408,17 @@ int main(int argc, char *argv[])
 		selectLoadedFile = 1;
 		std::string dir(argv[1]);
 		dir.assign(&dir[dir.find_last_of(":") + 2]);
+		char arg_filename[1024];
+		strncpy(arg_filename, argv[2], sizeof(arg_filename));
 		strncpy(GCSettings.LoadFolder, dir.c_str(), sizeof(GCSettings.LoadFolder));
 		OpenGameList();
 		strncpy(GCSettings.Exit_Dol_File, argv[3], sizeof(GCSettings.Exit_Dol_File));
 		for(int i = 0; i < browser.numEntries; i++)
 		{
-			if(strcasestr(browserList[i].filename, argv[2]) != NULL)
+			// Skip it
+			if (strcmp(browserList[i].filename, ".") == 0 || strcmp(browserList[i].filename, "..") == 0)
+				continue;
+			if(strcasestr(browserList[i].filename, arg_filename) != NULL)
 			{
 				browser.selIndex = i;
 				if(IsSz())

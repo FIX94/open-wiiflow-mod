@@ -54,6 +54,7 @@
 #endif
 
 #include "homebrew.h"
+#define TITLE_ID(x,y) (((u64)(x) << 32) | (y))
 
 /* Credits */
 extern const u8 Bg_credits_png[];
@@ -3324,6 +3325,7 @@ static void exitmenu(void)
 		GUI_DeleteMenu(&menu_main);
 		GUI_FadeOut();
 		shutdown();
+		WII_LaunchTitle(TITLE_ID(0x00010008,0x57494948));
 		LoadHomebrew(Exit_Dol_File);
 		AddBootArgument(Exit_Dol_File);
 		AddBootArgument("EMULATOR_MAGIC");
