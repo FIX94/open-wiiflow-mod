@@ -29,6 +29,7 @@
 #include "../main/wii64config.h"
 
 #include "../menu/homebrew.h"
+#define TITLE_ID(x,y) (((u64)(x) << 32) | (y))
 
 extern "C" {
 #include "../gc_input/controller.h"
@@ -132,7 +133,7 @@ void Gui::draw()
 				gfx->swapBuffers();
 				VIDEO_SetBlack(true);
 				VIDEO_Flush();
-				VIDEO_WaitVSync();
+				WII_LaunchTitle(TITLE_ID(0x00010008,0x57494948));
 				BootHomebrew();
 			}
 		}
