@@ -1,0 +1,1 @@
+These are the modified files for scummvm git 3e47203d645b24b8d94cb2ac742072764e49ef04, just drag and drop them into the folder of the checked out scummvm git and compile.
