@@ -2,8 +2,17 @@
 
 =*WiiFlow Themes*=
 
+Last updated 5-21-2012
+
+Changes - 
+added backgrounds for plugin select and source select menu's.
+removed all sounds hopefully to stop the scratchy static noise.
+all flows now have 8 modes/layouts in all themes.
+added Mastershoes six emuflows
+included default.ini theme.
+
 Click the link below to download the latest WiiFlow themes pack.
 
-http://www.mediafire.com/?geg0zevcu5tysz0
+http://www.mediafire.com/?kfmw5oevk2p3tt4
 
-currently work with r245+
+Notes: I rushed thru editing so hopefully everything is okay. The first six emuflows are from Mastershoes and credit goes to him for that.  use #2 for SNES/N64 and #6 for gamegear and all gameboy games.
