@@ -165,6 +165,8 @@ void wii_memstats(void) {
 int main(int argc, char *argv[]) {
 	s32 res;
 
+	IOS_ReloadIOS(58);
+
 #if defined(USE_WII_DI) && !defined(GAMECUBE)
 	DI_Init();
 #endif
