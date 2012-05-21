@@ -162,6 +162,8 @@ void wii_memstats(void) {
 }
 #endif
 
+#define TITLE_ID(x,y) (((u64)(x) << 32) | (y))
+
 int main(int argc, char *argv[]) {
 	s32 res;
 
@@ -243,6 +245,7 @@ int main(int argc, char *argv[]) {
 	gfx_deinit();
 	gfx_video_deinit();
 
+	WII_LaunchTitle(TITLE_ID(0x00010008,0x57494948));
 	return res;
 }
 
