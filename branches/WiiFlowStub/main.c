@@ -17,20 +17,13 @@
 #define IOCTL_ES_GETVIEWCNT				0x12
 #define IOCTL_ES_GETVIEWS				0x13
 
+#define TITLE_ID(x,y)					(((u64)(x) << 32) | (y))
+#define TITLE_LOWER						0x12345678
+#define TITLE_UPPER						0x90ABCDEF
+
 static struct ioctlv vecs[16] ALIGNED(64);
 
 static int es_fd;
-
-void memset32(u32 *addr, u32 data, u32 count) __attribute__ ((externally_visible));
-
-void memset32(u32 *addr, u32 data, u32 count) 
-{
-	int sc = count;
-	void *sa = addr;
-	while(count--)
-		*addr++ = data;
-	sync_after_write(sa, 4*sc);
-}
 
 static int es_init(void)
 {
@@ -64,11 +57,8 @@ static int es_launchtitle(u64 titleID)
 	return ret;
 }
 
-#define TITLE_ID(x,y) (((u64)(x) << 32) | (y))
-
-void main (void)
+void main(void)
 {
 	es_init();
-	es_launchtitle(TITLE_ID(0x00010008,0x57494948));
+	es_launchtitle(TITLE_ID(TITLE_LOWER, TITLE_UPPER));
 }
-

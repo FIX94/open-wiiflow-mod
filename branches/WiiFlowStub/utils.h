@@ -12,9 +12,6 @@
 
 #include "types.h"
 
-void *memset(void *,int,int);
-void *memcpy(void *ptr, const void *src, int size);
-int memcmp(const void *s1, const void *s2, size_t n);
 int strlen(const char *ptr);
 void udelay(u32 us);
 

@@ -14,45 +14,6 @@
 #include "types.h"
 #include "utils.h"
 
-#ifndef TINY
-void *memset(void *ptr, int c, int size) {
-	char* ptr2 = ptr;
-	while(size--) *ptr2++ = (char)c;
-	return ptr;
-}
-
-void *memcpy(void *ptr, const void *src, int size) {
-	char* ptr2 = ptr;
-	const char* src2 = src;
-	while(size--) *ptr2++ = *src2++;
-	return ptr;
-}
-
-int strlen(const char *ptr) {
-	int i=0;
-	while(*ptr++) i++;
-	return i;
-}
-#endif
-
-int memcmp(const void *s1, const void *s2, size_t n)
-{
-     const unsigned char *us1 = (const unsigned char *) s1;
-     const unsigned char *us2 = (const unsigned char *) s2;
-     while (n-- != 0) {
-         if (*us1 != *us2)
-#ifdef TINY
-             return 1;
-#else
-             return (*us1 < *us2) ? -1 : +1;
-#endif
-         us1++;
-         us2++;
-     }
-     return 0;
-}
-
-
 // Timebase frequency is core frequency / 8.  Ignore roundoff, this
 // doesn't have to be very accurate.
 #define TICKS_PER_USEC (729/8)
