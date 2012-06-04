@@ -84,6 +84,8 @@ struct SGCSettings{
 	char	CheatFolder[MAXPATHLEN]; // Path to cheat files
 
 	char	Exit_Dol_File[MAXPATHLEN]; // Exit Path
+	char	LoaderName[20]; // Menu Loader Name
+	u32		Exit_Channel[2]; // Exit Channel
 
 	char	smbip[80];
 	char	smbuser[20];
@@ -114,6 +116,7 @@ struct SGCSettings{
 
 void ExitApp();
 void ExitToWiiflow();
+void KeepUSBAlive();
 void ShutdownWii();
 bool SupportedIOS(u32 ios);
 bool SaneIOS(u32 ios);
@@ -127,5 +130,6 @@ extern char loadedFile[];
 extern int frameskip;
 extern int turbomode;
 extern bool romLoaded;
+extern time_t start;
 
 #endif
