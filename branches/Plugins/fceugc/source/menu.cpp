@@ -218,6 +218,7 @@ WindowPrompt(const char *title, const char *msg, const char *btn1Label, const ch
 	while(choice == -1)
 	{
 		usleep(THREAD_SLEEP);
+		KeepUSBAlive();
 
 		if(btn1.GetState() == STATE_CLICKED)
 			choice = 1;
@@ -315,6 +316,7 @@ UpdateGUI (void *arg)
 			ExitApp();
 		}
 		usleep(THREAD_SLEEP);
+		KeepUSBAlive();
 	}
 	return NULL;
 }
@@ -390,6 +392,7 @@ ProgressWindow(char *title, char *msg)
 
 	while(progsleep > 0)
 	{
+		KeepUSBAlive();
 		if(!showProgress)
 			break;
 		usleep(THREAD_SLEEP);
@@ -412,6 +415,7 @@ ProgressWindow(char *title, char *msg)
 	while(showProgress)
 	{
 		progsleep = 20000;
+		KeepUSBAlive();
 
 		while(progsleep > 0)
 		{
@@ -642,6 +646,7 @@ static void OnScreenKeyboard(char * var, u32 maxlen)
 	while(save == -1)
 	{
 		usleep(THREAD_SLEEP);
+		KeepUSBAlive();
 
 		if(okBtn.GetState() == STATE_CLICKED)
 			save = 1;
@@ -732,6 +737,7 @@ SettingWindow(const char * title, GuiWindow * w)
 	while(save == -1)
 	{
 		usleep(THREAD_SLEEP);
+		KeepUSBAlive();
 
 		if(okBtn.GetState() == STATE_CLICKED)
 			save = 1;
@@ -880,6 +886,7 @@ static void WindowCredits(void * ptr)
 			exit = true;
 		}
 		usleep(THREAD_SLEEP);
+		KeepUSBAlive();
 	}
 
 	// clear buttons pressed
@@ -1084,7 +1091,9 @@ static int MenuGame()
 	gameSettingsBtn.SetTrigger(trig2);
 	gameSettingsBtn.SetEffectGrow();
 
-	GuiText mainmenuBtnTxt("Back to WiiFlow", 22, (GXColor){0, 0, 0, 255});
+	char Lable[28];
+	snprintf(Lable, sizeof(Lable), "Back to %s", GCSettings.LoaderName);
+	GuiText mainmenuBtnTxt(Lable, 22, (GXColor){0, 0, 0, 255});
 	GuiImage mainmenuBtnImg(&btnOutline);
 	GuiImage mainmenuBtnImgOver(&btnOutlineOver);
 	GuiButton mainmenuBtn(btnOutline.GetWidth(), btnOutline.GetHeight());
@@ -1205,6 +1214,7 @@ static int MenuGame()
 	while(menu == MENU_NONE)
 	{
 		usleep(THREAD_SLEEP);
+		KeepUSBAlive();
 
 		#ifdef HW_RVL
 		for(i=0; i < 4; i++)
@@ -1507,6 +1517,7 @@ static int MenuGameSaves(int action)
 	while(menu == MENU_NONE)
 	{
 		usleep(THREAD_SLEEP);
+		KeepUSBAlive();
 
 		ret = saveBrowser.GetClickedSave();
 
@@ -1754,6 +1765,7 @@ static int MenuGameSettings()
 	while(menu == MENU_NONE)
 	{
 		usleep(THREAD_SLEEP);
+		KeepUSBAlive();
 
 		if(mappingBtn.GetState() == STATE_CLICKED)
 		{
@@ -1874,6 +1886,7 @@ static int MenuGameCheats()
 	while(menu == MENU_NONE)
 	{
 		usleep(THREAD_SLEEP);
+		KeepUSBAlive();
 
 		ret = optionBrowser.GetClickedOption();
 
@@ -1982,6 +1995,7 @@ static int MenuSettingsMappings()
 	while(menu == MENU_NONE)
 	{
 		usleep(THREAD_SLEEP);
+		KeepUSBAlive();
 
 		if(nesBtn.GetState() == STATE_CLICKED)
 		{
@@ -2145,6 +2159,7 @@ static int MenuSettingsMappingsController()
 	while(menu == MENU_NONE)
 	{
 		usleep(THREAD_SLEEP);
+		KeepUSBAlive();
 
 		if(wiimoteBtn.GetState() == STATE_CLICKED)
 		{
@@ -2239,6 +2254,7 @@ ButtonMappingWindow()
 	while(pressed == 0)
 	{
 		usleep(THREAD_SLEEP);
+		KeepUSBAlive();
 
 		if(mapMenuCtrl == CTRLR_GCPAD)
 		{
@@ -2399,6 +2415,7 @@ static int MenuSettingsMappingsMap()
 	while(menu == MENU_NONE)
 	{
 		usleep(THREAD_SLEEP);
+		KeepUSBAlive();
 
 		if(backBtn.GetState() == STATE_CLICKED)
 		{
@@ -2788,6 +2805,7 @@ static int MenuSettingsVideo()
 	while(menu == MENU_NONE)
 	{
 		usleep(THREAD_SLEEP);
+		KeepUSBAlive();
 
 		ret = optionBrowser.GetClickedOption();
 
@@ -3071,6 +3089,7 @@ static int MenuSettings()
 	while(menu == MENU_NONE)
 	{
 		usleep(THREAD_SLEEP);
+		KeepUSBAlive();
 
 		if(savingBtn.GetState() == STATE_CLICKED)
 		{
@@ -3183,6 +3202,7 @@ static int MenuSettingsFile()
 	while(menu == MENU_NONE)
 	{
 		usleep(THREAD_SLEEP);
+		KeepUSBAlive();
 
 		ret = optionBrowser.GetClickedOption();
 
@@ -3368,6 +3388,7 @@ static int MenuSettingsMenu()
 	while(menu == MENU_NONE)
 	{
 		usleep(THREAD_SLEEP);
+		KeepUSBAlive();
 
 		ret = optionBrowser.GetClickedOption();
 
@@ -3548,6 +3569,7 @@ static int MenuSettingsNetwork()
 	while(menu == MENU_NONE)
 	{
 		usleep(THREAD_SLEEP);
+		KeepUSBAlive();
 
 		ret = optionBrowser.GetClickedOption();
 
@@ -3739,6 +3761,7 @@ MainMenu (int menu)
 		}
 		lastMenu = currentMenu;
 		usleep(THREAD_SLEEP);
+		KeepUSBAlive();
 	}
 
 	#ifdef HW_RVL
@@ -3775,5 +3798,6 @@ MainMenu (int menu)
 	{
 		UpdatePads();
 		usleep(THREAD_SLEEP);
+		KeepUSBAlive();
 	}
 }
