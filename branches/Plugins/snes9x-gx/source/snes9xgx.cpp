@@ -63,6 +63,7 @@ extern "C" {
 extern void __exception_setreload(int t);
 }
 
+time_t start = time(0);
 extern void S9xInitSync();
 extern uint32 prevRenderedFrameCount;
 
@@ -91,7 +92,7 @@ void ExitCleanup()
 
 void ExitToWiiflow()
 {
-	WII_LaunchTitle(TITLE_ID(0x00010008,0x57494948));
+	WII_LaunchTitle(TITLE_ID(GCSettings.Exit_Channel[0], GCSettings.Exit_Channel[1]));
 
 	LoadHomebrew(GCSettings.Exit_Dol_File);
 	AddBootArgument(GCSettings.Exit_Dol_File);
@@ -327,8 +328,28 @@ void USBGeckoOutput()
 	devoptab_list[STD_ERR] = &gecko_out;
 }
 
-int
-main(int argc, char *argv[])
+void KeepUSBAlive()
+{
+	if(!isMounted[DEVICE_USB])
+		return;
+	if(time(0) - start < 30)
+		return;
+
+	printf("tick\n");
+	start = time(0);
+
+	FILE *f = fopen("usb:/pllive.dat", "rb");
+	if(f)
+	{
+		fclose(f);
+		return;
+	}
+	f = fopen("usb:/pllive.dat", "wb");
+	fwrite(f, 1, sizeof(FILE), f);
+	fclose(f);
+}
+
+int main(int argc, char *argv[])
 {
 #ifdef HW_RVL
 	L2Enhance();
@@ -344,7 +365,7 @@ main(int argc, char *argv[])
 	}
 #endif
 	
-	//USBGeckoOutput(); // uncomment to enable USB gecko output
+	USBGeckoOutput(); // uncomment to enable USB gecko output
 	__exception_setreload(8);
 
 	#ifdef HW_DOL
@@ -438,6 +459,20 @@ main(int argc, char *argv[])
 		strncpy(GCSettings.LoadFolder, dir.c_str(), sizeof(GCSettings.LoadFolder));
 		OpenGameList();
 		strncpy(GCSettings.Exit_Dol_File, argv[3], sizeof(GCSettings.Exit_Dol_File));
+		if(argc > 5 && argv[4] != NULL && argv[5] != NULL)
+		{
+			sscanf(argv[4], "%08x", &GCSettings.Exit_Channel[0]);
+			sscanf(argv[5], "%08x", &GCSettings.Exit_Channel[1]);
+		}
+		else
+		{
+			GCSettings.Exit_Channel[0] = 0x00010008;
+			GCSettings.Exit_Channel[1] = 0x57494948;
+		}
+		if(argc > 6 && argv[6] != NULL)
+			strncpy(GCSettings.LoaderName, argv[6], sizeof(GCSettings.LoaderName));
+		else
+			snprintf(GCSettings.LoaderName, sizeof(GCSettings.LoaderName), "WiiFlow");
 		for(int i = 0; i < browser.numEntries; i++)
 		{
 			// Skip it
@@ -462,6 +497,7 @@ main(int argc, char *argv[])
 		// go back to checking if devices were inserted/removed
 		// since we're entering the menu
 		ResumeDeviceThread();
+		KeepUSBAlive();
 
 		SwitchAudioMode(1);
 
@@ -499,15 +535,16 @@ main(int argc, char *argv[])
 
 		while(1) // emulation loop
 		{
-			S9xMainLoop ();
-			ReportButtons ();
+			S9xMainLoop();
+			ReportButtons();
 
+			KeepUSBAlive();
 			if(ResetRequested)
 			{
 				S9xSoftReset (); // reset game
 				ResetRequested = 0;
 			}
-			if (ConfigRequested)
+			if(ConfigRequested)
 			{
 				ConfigRequested = 0;
 				ResetVideo_Menu();
