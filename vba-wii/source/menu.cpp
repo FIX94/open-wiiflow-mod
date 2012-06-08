@@ -995,7 +995,9 @@ static int MenuGame()
 	gameSettingsBtn.SetTrigger(trig2);
 	gameSettingsBtn.SetEffectGrow();
 
-	GuiText mainmenuBtnTxt("Back to WiiFlow", 22, (GXColor){0, 0, 0, 255});
+	char Lable[28];
+	snprintf(Lable, sizeof(Lable), "Back to %s", GCSettings.LoaderName);
+	GuiText mainmenuBtnTxt(Lable, 22, (GXColor){0, 0, 0, 255});
 	GuiImage mainmenuBtnImg(&btnOutline);
 	GuiImage mainmenuBtnImgOver(&btnOutlineOver);
 	GuiButton mainmenuBtn(btnOutline.GetWidth(), btnOutline.GetHeight());

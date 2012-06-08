@@ -88,6 +88,8 @@ struct SGCSettings{
 	char	CheatFolder[MAXPATHLEN]; // Path to cheat files
 
 	char	Exit_Dol_File[MAXPATHLEN]; // Exit Path
+	char	LoaderName[20]; // Menu Loader Name
+	u32		Exit_Channel[2]; // Exit Channel
 
 	char	smbip[80];
 	char	smbuser[20];

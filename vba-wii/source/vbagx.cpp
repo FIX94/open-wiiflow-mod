@@ -57,14 +57,27 @@ int ExitRequested = 0;
 char appPath[1024] = { 0 };
 char loadedFile[1024] = { 0 };
 
+lwp_t USB_Thread = LWP_THREAD_NULL;
+void *KeepUSBAlive(void *nothing);
+bool CheckUSB = false;
+static int USB_Thread_Active = 0;
+
 /****************************************************************************
  * Shutdown / Reboot / Exit
  ***************************************************************************/
 
 static void ExitCleanup()
 {
+	CheckUSB = false;
+	while(USB_Thread_Active)
+		usleep(100);
+	printf("Got thread exit signal\n");
+	LWP_JoinThread(USB_Thread, NULL);
+	USB_Thread = LWP_THREAD_NULL;
+
 	ShutdownAudio();
 	StopGX();
+
 	HaltDeviceThread();
 	UnmountAllFAT();
 
@@ -81,17 +94,18 @@ static void ExitCleanup()
 
 void ExitToWiiflow()
 {
-	WII_LaunchTitle(TITLE_ID(0x00010008,0x57494948));
-
-	LoadHomebrew(GCSettings.Exit_Dol_File);
-	AddBootArgument(GCSettings.Exit_Dol_File);
-	AddBootArgument("EMULATOR_MAGIC");
-
 	ShutoffRumble();
 	SavePrefs(SILENT);
 	if (ROMLoaded && !ConfigRequested && GCSettings.AutoSave == 1)
 		SaveBatteryOrStateAuto(FILE_SRAM, SILENT);
 	ExitCleanup();
+
+	WII_Initialize();
+	WII_LaunchTitle(TITLE_ID(GCSettings.Exit_Channel[0], GCSettings.Exit_Channel[1]));
+
+	LoadHomebrew(GCSettings.Exit_Dol_File);
+	AddBootArgument(GCSettings.Exit_Dol_File);
+	AddBootArgument("EMULATOR_MAGIC");
 
 	BootHomebrew();
 }
@@ -317,6 +331,35 @@ void USBGeckoOutput()
 	devoptab_list[STD_ERR] = &gecko_out;
 }
 
+void *KeepUSBAlive(void *nothing)
+{
+	USB_Thread_Active = 1;
+	DCFlushRange(&USB_Thread_Active, sizeof(USB_Thread_Active));
+	printf("Starting USB keep alive thread\n");
+	time_t start = time(0);
+	while(CheckUSB)
+	{
+		if(!isMounted[DEVICE_USB] || (time(0) - start < 30))
+		{
+			usleep(1000);
+			continue;
+		}
+		start = time(0);
+		printf("tick\n");
+		FILE *f = fopen("usb:/pllive.dat", "rb");
+		if(!f)
+		{
+			f = fopen("usb:/pllive.dat", "wb");
+			fwrite(f, 1, sizeof(FILE), f);
+		}
+		fclose(f);
+	}
+	printf("Got exit callback from main program\n");
+	USB_Thread_Active = 0;
+	DCFlushRange(&USB_Thread_Active, sizeof(USB_Thread_Active));
+	return nothing;
+}
+
 /****************************************************************************
 * main
 *
@@ -338,7 +381,7 @@ int main(int argc, char *argv[])
 	}
 #endif
 	
-	//USBGeckoOutput(); // uncomment to enable USB gecko output
+	USBGeckoOutput(); // uncomment to enable USB gecko output
 	__exception_setreload(8);
 
 	#ifdef HW_DOL
@@ -413,6 +456,20 @@ int main(int argc, char *argv[])
 		strncpy(GCSettings.LoadFolder, dir.c_str(), sizeof(GCSettings.LoadFolder));
 		OpenGameList();
 		strncpy(GCSettings.Exit_Dol_File, argv[3], sizeof(GCSettings.Exit_Dol_File));
+		if(argc > 5 && argv[4] != NULL && argv[5] != NULL)
+		{
+			sscanf(argv[4], "%08x", &GCSettings.Exit_Channel[0]);
+			sscanf(argv[5], "%08x", &GCSettings.Exit_Channel[1]);
+		}
+		else
+		{
+			GCSettings.Exit_Channel[0] = 0x00010008;
+			GCSettings.Exit_Channel[1] = 0x57494948;
+		}
+		if(argc > 6 && argv[6] != NULL)
+			strncpy(GCSettings.LoaderName, argv[6], sizeof(GCSettings.LoaderName));
+		else
+			snprintf(GCSettings.LoaderName, sizeof(GCSettings.LoaderName), "WiiFlow");
 		for(int i = 0; i < browser.numEntries; i++)
 		{
 			// Skip it
@@ -431,6 +488,9 @@ int main(int argc, char *argv[])
 		}
 		BrowserLoadFile();
 	}
+
+	CheckUSB = true;
+	LWP_CreateThread(&USB_Thread, KeepUSBAlive, NULL, NULL, 0, LWP_PRIO_IDLE);
 
 	while(1) // main loop
 	{
