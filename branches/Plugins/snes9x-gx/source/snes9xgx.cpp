@@ -67,12 +67,24 @@ time_t start = time(0);
 extern void S9xInitSync();
 extern uint32 prevRenderedFrameCount;
 
+lwp_t USB_Thread = LWP_THREAD_NULL;
+void *KeepUSBAlive(void *nothing);
+bool CheckUSB = false;
+static int USB_Thread_Active = 0;
+
 /****************************************************************************
  * Shutdown / Reboot / Exit
  ***************************************************************************/
 
 void ExitCleanup()
 {
+	CheckUSB = false;
+	while(USB_Thread_Active)
+		usleep(100);
+	printf("Got thread exit signal\n");
+	LWP_JoinThread(USB_Thread, NULL);
+	USB_Thread = LWP_THREAD_NULL;
+
 	ShutdownAudio();
 	StopGX();
 
@@ -92,17 +104,18 @@ void ExitCleanup()
 
 void ExitToWiiflow()
 {
-	WII_LaunchTitle(TITLE_ID(GCSettings.Exit_Channel[0], GCSettings.Exit_Channel[1]));
-
-	LoadHomebrew(GCSettings.Exit_Dol_File);
-	AddBootArgument(GCSettings.Exit_Dol_File);
-	AddBootArgument("EMULATOR_MAGIC");
-
 	ShutoffRumble();
 	SavePrefs(SILENT);
 	if (SNESROMSize > 0 && !ConfigRequested && GCSettings.AutoSave == 1)
 		SaveSRAMAuto(SILENT);
 	ExitCleanup();
+
+	WII_Initialize();
+	WII_LaunchTitle(TITLE_ID(GCSettings.Exit_Channel[0], GCSettings.Exit_Channel[1]));
+
+	LoadHomebrew(GCSettings.Exit_Dol_File);
+	AddBootArgument(GCSettings.Exit_Dol_File);
+	AddBootArgument("EMULATOR_MAGIC");
 
 	BootHomebrew();
 }
@@ -328,27 +341,40 @@ void USBGeckoOutput()
 	devoptab_list[STD_ERR] = &gecko_out;
 }
 
-void KeepUSBAlive()
+void *KeepUSBAlive(void *nothing)
 {
-	if(!isMounted[DEVICE_USB])
-		return;
-	if(time(0) - start < 30)
-		return;
-
-	printf("tick\n");
-	start = time(0);
-
-	FILE *f = fopen("usb:/pllive.dat", "rb");
-	if(f)
+	USB_Thread_Active = 1;
+	DCFlushRange(&USB_Thread_Active, sizeof(USB_Thread_Active));
+	printf("Starting USB keep alive thread\n");
+	time_t start = time(0);
+	while(CheckUSB)
 	{
+		if(!isMounted[DEVICE_USB] || (time(0) - start < 30))
+		{
+			usleep(1000);
+			continue;
+		}
+		start = time(0);
+		printf("tick\n");
+		FILE *f = fopen("usb:/pllive.dat", "rb");
+		if(!f)
+		{
+			f = fopen("usb:/pllive.dat", "wb");
+			fwrite(f, 1, sizeof(FILE), f);
+		}
 		fclose(f);
-		return;
 	}
-	f = fopen("usb:/pllive.dat", "wb");
-	fwrite(f, 1, sizeof(FILE), f);
-	fclose(f);
+	printf("Got exit callback from main program\n");
+	USB_Thread_Active = 0;
+	DCFlushRange(&USB_Thread_Active, sizeof(USB_Thread_Active));
+	return nothing;
 }
 
+/****************************************************************************
+* main
+*
+* Program entry
+****************************************************************************/
 int main(int argc, char *argv[])
 {
 #ifdef HW_RVL
@@ -492,12 +518,14 @@ int main(int argc, char *argv[])
 		BrowserLoadFile();
 	}
 
+	CheckUSB = true;
+	LWP_CreateThread(&USB_Thread, KeepUSBAlive, NULL, NULL, 0, LWP_PRIO_IDLE);
+
 	while (1) // main loop
 	{
 		// go back to checking if devices were inserted/removed
 		// since we're entering the menu
 		ResumeDeviceThread();
-		KeepUSBAlive();
 
 		SwitchAudioMode(1);
 
@@ -521,13 +549,13 @@ int main(int argc, char *argv[])
 		Settings.SuperScopeMaster = (GCSettings.Controller == CTRL_SCOPE ? true : false);
 		Settings.MouseMaster = (GCSettings.Controller == CTRL_MOUSE ? true : false);
 		Settings.JustifierMaster = (GCSettings.Controller == CTRL_JUST ? true : false);
-		SetControllers ();
+		SetControllers();
 
 		// stop checking if devices were removed/inserted
 		// since we're starting emulation again
 		HaltDeviceThread();
 
-		AudioStart ();
+		AudioStart();
 
 		CheckVideo = 2;	// force video update
 		prevRenderedFrameCount = IPPU.RenderedFramesCount;
@@ -538,10 +566,9 @@ int main(int argc, char *argv[])
 			S9xMainLoop();
 			ReportButtons();
 
-			KeepUSBAlive();
 			if(ResetRequested)
 			{
-				S9xSoftReset (); // reset game
+				S9xSoftReset(); // reset game
 				ResetRequested = 0;
 			}
 			if(ConfigRequested)

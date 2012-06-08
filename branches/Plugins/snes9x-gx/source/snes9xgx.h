@@ -117,7 +117,6 @@ struct SGCSettings{
 
 void ExitApp();
 void ExitToWiiflow();
-void KeepUSBAlive();
 void ShutdownWii();
 bool SupportedIOS(u32 ios);
 bool SaneIOS(u32 ios);
@@ -129,6 +128,5 @@ extern int ExitRequested;
 extern char appPath[];
 extern char loadedFile[];
 extern FreeTypeGX *fontSystem[];
-extern time_t start;
 
 #endif

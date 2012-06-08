@@ -116,7 +116,6 @@ struct SGCSettings{
 
 void ExitApp();
 void ExitToWiiflow();
-void KeepUSBAlive();
 void ShutdownWii();
 bool SupportedIOS(u32 ios);
 bool SaneIOS(u32 ios);
@@ -130,6 +129,5 @@ extern char loadedFile[];
 extern int frameskip;
 extern int turbomode;
 extern bool romLoaded;
-extern time_t start;
 
 #endif
