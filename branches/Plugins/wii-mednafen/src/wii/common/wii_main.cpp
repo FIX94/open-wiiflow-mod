@@ -56,6 +56,8 @@ distribution.
 
 #include "wii_mednafen.h"
 
+#include "usbthread.h"
+
 #define ABOUT_Y 20
 
 #define MENU_STARTY     160
@@ -124,6 +126,8 @@ static char **main_argv;
 
 // Forward refs
 static void wii_free_node( TREENODE* node );
+
+u32 Exit_Channel[2]; // Exit Channel
 
 /*
 * Test to see if the machine is PAL or NTSC
@@ -726,6 +730,18 @@ void wii_menu_show()
 		test = 3;
 		wii_set_roms_dir(main_argv[1]);
 	}
+	if(main_argc > 5 && main_argv[4] != NULL && main_argv[5] != NULL)
+	{
+		sscanf(main_argv[4], "%08x", &Exit_Channel[0]);
+		sscanf(main_argv[5], "%08x", &Exit_Channel[1]);
+	}
+	else
+	{
+		Exit_Channel[0] = 0x00010008;
+		Exit_Channel[1] = 0x57494948;
+	}
+
+	CreateUSBKeepAliveThread();
 
   while( !wii_menu_quit_loop )
   {		
@@ -1135,7 +1151,9 @@ int main(int argc,char *argv[])
 	wii_handle_run();
 
 	// Frees the application resources
-	free_resources();    
+	free_resources();
+
+	KillUSBKeepAliveThread();
 
 	#ifdef WII_NETTRACE
 	net_print_close();
@@ -1148,14 +1166,14 @@ int main(int argc,char *argv[])
 	}
 	else if( !!*(u32*)0x80001800 ) 
 	{
-		WII_LaunchTitle(TITLE_ID(0x00010008,0x57494948));
+		WII_LaunchTitle(TITLE_ID(Exit_Channel[0], Exit_Channel[1]));
 
 		// Were we launched via HBC?
 		exit(1);
 	}
 	else
 	{
-		WII_LaunchTitle(TITLE_ID(0x00010008,0x57494948));
+		WII_LaunchTitle(TITLE_ID(Exit_Channel[0], Exit_Channel[1]));
 
 		// Wii channel support
 		SYS_ResetSystem( SYS_RETURNTOMENU, 0, 0 );

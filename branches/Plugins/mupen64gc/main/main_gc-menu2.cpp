@@ -76,6 +76,7 @@ extern "C" {
 #include "../gc_memory/MEM2.h"
 #endif
 
+#include "usbthread.h"
 
 /* NECESSARY FUNCTIONS AND VARIABLES */
 
@@ -180,6 +181,7 @@ void (*fBGetFrameBufferInfo)(void *p) = NULL;
 //void new_vi(){ }
 // Read PAD format from Classic if available
 u16 readWPAD(void);
+u32 Exit_Channel[2]; // Exit Channel
 
 int main(int argc, char* argv[]){
 	/* INITIALIZE */
@@ -207,6 +209,16 @@ int main(int argc, char* argv[]){
 		strncpy(menu->AutobootPath, argv[1], sizeof(menu->AutobootPath));
 		strncpy(menu->AutobootROM, argv[2], sizeof(menu->AutobootROM));
 		strncpy(menu->AutobootDol, argv[3], sizeof(menu->AutobootDol));
+	}
+	if(argc > 5 && argv[4] != NULL && argv[5] != NULL)
+	{
+		sscanf(argv[4], "%08x", &Exit_Channel[0]);
+		sscanf(argv[5], "%08x", &Exit_Channel[1]);
+	}
+	else
+	{
+		Exit_Channel[0] = 0x00010008;
+		Exit_Channel[1] = 0x57494948;
 	}
 
 	VIDEO_SetPostRetraceCallback (ScanPADSandReset);
@@ -330,6 +342,9 @@ int main(int argc, char* argv[]){
 		}
 	}
 #ifdef HW_RVL
+
+	CreateUSBKeepAliveThread();
+
 	// Handle options passed in through arguments
 	int i;
 	for(i=1; i<argc; ++i){

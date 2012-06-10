@@ -3304,10 +3304,13 @@ static void showcredits(void)
 
 static void exitmenu(void)
 {
+	char ExitToChar[64];
+	snprintf(ExitToChar, sizeof(ExitToChar), "Back To %s", LoaderName);
+
   char *items[2] =
   {
     "View Credits",
-    "Back to WiiFlow",
+    ExitToChar,
   };
 
   /* display option window */
@@ -3325,7 +3328,7 @@ static void exitmenu(void)
 		GUI_DeleteMenu(&menu_main);
 		GUI_FadeOut();
 		shutdown();
-		WII_LaunchTitle(TITLE_ID(0x00010008,0x57494948));
+		WII_LaunchTitle(TITLE_ID(Exit_Channel[0], Exit_Channel[1]));
 		LoadHomebrew(Exit_Dol_File);
 		AddBootArgument(Exit_Dol_File);
 		AddBootArgument("EMULATOR_MAGIC");

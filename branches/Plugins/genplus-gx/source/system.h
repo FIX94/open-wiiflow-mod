@@ -111,7 +111,9 @@ extern int16 SVP_cycles;
 extern uint8 system_hw;
 extern uint32 system_clock;
 
-char Exit_Dol_File[1024]; // Exit Path
+char 	Exit_Dol_File[1024]; // Exit Path
+char 	LoaderName[20]; // Menu Loader Name
+uint32	Exit_Channel[2]; // Exit Channel
 
 /* Function prototypes */
 extern int audio_init(int samplerate, double framerate);
