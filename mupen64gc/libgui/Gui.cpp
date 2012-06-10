@@ -28,6 +28,7 @@
 #include "GuiResources.h"
 #include "../main/wii64config.h"
 
+#include "../main/usbthread.h"
 #include "../menu/homebrew.h"
 #define TITLE_ID(x,y) (((u64)(x) << 32) | (y))
 
@@ -40,6 +41,7 @@ extern "C" {
 
 extern char shutdown;
 extern unsigned int dvd_hard_init;
+extern u32 Exit_Channel[2]; // Exit Channel
 
 namespace menu {
 
@@ -110,7 +112,9 @@ void Gui::draw()
 		gfx->setColor((GXColor){0, 0, 0, fade});
 		if(screenMode)	gfx->fillRect(-104, 0, 848, 480);
 		else			gfx->fillRect(0, 0, 640, 480);
-		
+
+		KillUSBKeepAliveThread();
+
 		if(fade == 255)
 		{
 			VIDEO_SetBlack(true);
@@ -133,7 +137,7 @@ void Gui::draw()
 				gfx->swapBuffers();
 				VIDEO_SetBlack(true);
 				VIDEO_Flush();
-				WII_LaunchTitle(TITLE_ID(0x00010008,0x57494948));
+				WII_LaunchTitle(TITLE_ID(Exit_Channel[0], Exit_Channel[1]));
 				BootHomebrew();
 			}
 		}

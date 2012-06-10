@@ -46,6 +46,7 @@
 #include "file_load.h"
 #include "filesel.h"
 #include "cheats.h"
+#include "usbthread.h"
 
 #include <fat.h>
 
@@ -415,6 +416,8 @@ void shutdown(void)
     slot_autosave(config.s_default,config.s_device);
   }
 
+  KillUSBKeepAliveThread();
+
   /* shutdown emulation */
   system_shutdown();
   audio_shutdown();
@@ -556,6 +559,20 @@ int main (int argc, char *argv[])
 		config.autoload = 1;
 		strncpy(Exit_Dol_File, argv[3], sizeof(Exit_Dol_File));
 	}
+	if(argc > 5 && argv[4] != NULL && argv[5] != NULL)
+	{
+		sscanf(argv[4], "%08x", &Exit_Channel[0]);
+		sscanf(argv[5], "%08x", &Exit_Channel[1]);
+	}
+	else
+	{
+		Exit_Channel[0] = 0x00010008;
+		Exit_Channel[1] = 0x57494948;
+	}
+	if(argc > 6 && argv[6] != NULL)
+		strncpy(LoaderName, argv[6], sizeof(LoaderName));
+	else
+		snprintf(LoaderName, sizeof(LoaderName), "WiiFlow");
 
   /* auto-load last ROM file */
   if (config.autoload)
@@ -574,6 +591,7 @@ int main (int argc, char *argv[])
         gx_audio_Start();
         frameticker = 1;
         ConfigRequested = 0;
+		CreateUSBKeepAliveThread();
       }
     }
     SILENT = 0;

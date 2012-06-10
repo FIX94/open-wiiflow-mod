@@ -43,6 +43,7 @@
 
 #include "fceultra/types.h"
 
+#include "usbthread.h"
 #include "homebrew.h"
 #define TITLE_ID(x,y) (((u64)(x) << 32) | (y))
 
@@ -72,23 +73,13 @@ int frameskip = 0;
 int turbomode = 0;
 unsigned char * nesrom = NULL;
 
-lwp_t USB_Thread = LWP_THREAD_NULL;
-void *KeepUSBAlive(void *nothing);
-bool CheckUSB = false;
-static int USB_Thread_Active = 0;
-
 /****************************************************************************
  * Shutdown / Reboot / Exit
  ***************************************************************************/
 
 static void ExitCleanup()
 {
-	CheckUSB = false;
-	while(USB_Thread_Active)
-		usleep(100);
-	printf("Got thread exit signal\n");
-	LWP_JoinThread(USB_Thread, NULL);
-	USB_Thread = LWP_THREAD_NULL;
+	KillUSBKeepAliveThread();
 
 	ShutdownAudio();
 	StopGX();
@@ -481,35 +472,6 @@ void Check3D()
 	old_anaglyph_3d_mode = anaglyph_3d_mode;
 }
 
-void *KeepUSBAlive(void *nothing)
-{
-	USB_Thread_Active = 1;
-	DCFlushRange(&USB_Thread_Active, sizeof(USB_Thread_Active));
-	printf("Starting USB keep alive thread\n");
-	time_t start = time(0);
-	while(CheckUSB)
-	{
-		if(!isMounted[DEVICE_USB] || (time(0) - start < 30))
-		{
-			usleep(1000);
-			continue;
-		}
-		start = time(0);
-		printf("tick\n");
-		FILE *f = fopen("usb:/pllive.dat", "rb");
-		if(!f)
-		{
-			f = fopen("usb:/pllive.dat", "wb");
-			fwrite(f, 1, sizeof(FILE), f);
-		}
-		fclose(f);
-	}
-	printf("Got exit callback from main program\n");
-	USB_Thread_Active = 0;
-	DCFlushRange(&USB_Thread_Active, sizeof(USB_Thread_Active));
-	return nothing;
-}
-
 /****************************************************************************
  * main
  * This is where it all happens!
@@ -646,8 +608,7 @@ int main(int argc, char *argv[])
 		BrowserLoadFile();
 	}
 
-	CheckUSB = true;
-	LWP_CreateThread(&USB_Thread, KeepUSBAlive, NULL, NULL, 0, LWP_PRIO_IDLE);
+	CreateUSBKeepAliveThread();
 
     while(1) // main loop
     {
