@@ -48,8 +48,6 @@ extern "C" {
 }
 #include <ogc/dvd.h>
 
-#include "homebrew.h"
-
 void Func_LoadROM();
 void Func_CurrentROM();
 void Func_Settings();
@@ -191,15 +189,8 @@ extern char shutdown;
 void Func_ExitToLoader()
 {
 	if(menu::MessageBox::getInstance().askMessage("Are you sure you want to exit to loader?"))
-	{
-		if(pMenuContext->Autoboot)
-		{	
-			LoadHomebrew(pMenuContext->AutobootDol);
-			shutdown = 3;
-		}
-		else
-			shutdown = 2;
-	}
+		shutdown = 2;
+
 //#ifdef WII
 //	DI_Close();
 //#endif

@@ -181,7 +181,6 @@ void (*fBGetFrameBufferInfo)(void *p) = NULL;
 //void new_vi(){ }
 // Read PAD format from Classic if available
 u16 readWPAD(void);
-u32 Exit_Channel[2]; // Exit Channel
 
 int main(int argc, char* argv[]){
 	/* INITIALIZE */
@@ -199,7 +198,8 @@ int main(int argc, char* argv[]){
 	WPAD_Shutdown();
 
 	/* Reload to IOS58 for USB */
-	IOS_ReloadIOS(58);
+	if(IOS_GetVersion() != 58)
+		IOS_ReloadIOS(58);
 
 	Initialise(); // Stock OGC initialization
 //	vmode = VIDEO_GetPreferredMode(NULL);
@@ -216,17 +216,6 @@ int main(int argc, char* argv[]){
 		strncpy(menu->AutobootROM, argv[2], sizeof(menu->AutobootROM));
 		strncpy(menu->AutobootDol, argv[3], sizeof(menu->AutobootDol));
 	}
-	if(argc > 5 && argv[4] != NULL && argv[5] != NULL)
-	{
-		sscanf(argv[4], "%08x", &Exit_Channel[0]);
-		sscanf(argv[5], "%08x", &Exit_Channel[1]);
-	}
-	else
-	{
-		Exit_Channel[0] = 0x00010008;
-		Exit_Channel[1] = 0x57494948;
-	}
-
 	VIDEO_SetPostRetraceCallback (ScanPADSandReset);
 #ifndef WII
 	DVD_Init();

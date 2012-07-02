@@ -408,9 +408,6 @@ static GXRModeObj * FindVideoMode()
 		default:
 			mode = VIDEO_GetPreferredMode(NULL);
 
-			if(mode == &TVPal528IntDf)
-				mode = &TVPal574IntDfScale;
-
 			#ifdef HW_DOL
 			/* we have component cables, but the preferred mode is interlaced
 			 * why don't we switch into progressive?
@@ -508,7 +505,7 @@ static void SetupVideoMode(GXRModeObj * mode)
 {
 	if(vmode == mode)
 		return;
-	
+
 	VIDEO_SetPostRetraceCallback (NULL);
 	copynow = GX_FALSE;
 	VIDEO_Configure (mode);
@@ -572,6 +569,21 @@ InitGCVideo ()
 	vheight = 100;
 }
 
+void ResetFbWidth(int width, GXRModeObj *rmode)
+{
+	if(rmode->fbWidth == width)
+		return;
+	
+	rmode->fbWidth = width;
+	
+	if(rmode != vmode)
+		return;
+	
+	GX_InvVtxCache();
+	VIDEO_Configure(rmode);
+	VIDEO_Flush();
+}
+
 /****************************************************************************
  * ResetVideo_Emu
  *
@@ -620,13 +632,11 @@ ResetVideo_Emu ()
 	{
 		rmode = FindVideoMode();
 		
-		if (!GCSettings.widescreen)
-		{
-			memcpy(&TV_Custom, rmode, sizeof(TV_Custom));
-			rmode = &TV_Custom;
-			rmode->fbWidth = 512;
-		}
-
+		if (GCSettings.widescreen)
+			ResetFbWidth(640, rmode);
+		else
+			ResetFbWidth(512, rmode);
+		
 		Settings.SoundInputRate = 31953;
 		UpdatePlaybackRate();
 	}

@@ -95,7 +95,6 @@ OBJ		=main/rom_gc.o \
 		main/savestates_gc.o \
 		r4300/profile.o \
 		main/adler32.o \
-		menu/homebrew.o \
 		main/usbthread.o
 
 OBJ_PPC		=r4300/ppc/MIPS-to-PPC.o \

@@ -1107,7 +1107,8 @@ int main(int argc,char *argv[])
 	WPAD_Shutdown();
 
 	//Reload to IOS58 for USB
-	IOS_ReloadIOS(58);
+	if(IOS_GetVersion() != 58)
+		IOS_ReloadIOS(58);
 
 	// Try to mount the file system
 	if( !ChangeInterface( wii_get_app_path(), FS_RETRY_COUNT ) ) 
@@ -1166,15 +1167,11 @@ int main(int argc,char *argv[])
 	}
 	else if( !!*(u32*)0x80001800 ) 
 	{
-		WII_LaunchTitle(TITLE_ID(Exit_Channel[0], Exit_Channel[1]));
-
-		// Were we launched via HBC?
+		// Were we launched via HBC? (or via wiiflows stub replacement? :P)
 		exit(1);
 	}
 	else
 	{
-		WII_LaunchTitle(TITLE_ID(Exit_Channel[0], Exit_Channel[1]));
-
 		// Wii channel support
 		SYS_ResetSystem( SYS_RETURNTOMENU, 0, 0 );
 	}

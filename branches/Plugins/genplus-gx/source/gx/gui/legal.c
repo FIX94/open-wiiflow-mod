@@ -3,7 +3,7 @@
  *
  *  Genesis Plus GX Disclaimer
  *
- *  Copyright Eke-Eke (2009-2011)
+ *  Copyright Eke-Eke (2009-2012)
  *
  *  Redistribution and use of this code or any derivative works are permitted
  *  provided that the following conditions are met:
@@ -119,24 +119,6 @@ void legal ()
 
   gxTextureClose(&button);
   gxTextureClose(&logo);
-
-
-#ifndef HW_RVL
-  /* detect video mode switch user request */
-  if (PAD_ButtonsHeld(0) & PAD_BUTTON_B)
-  {
-    /* switch user progressive mode configuration  */
-    config.v_prog ^= 1;
-
-    /* play sound to inform user then enter main menu */
-    ASND_Pause(0);
-    int voice = ASND_GetFirstUnusedVoice();
-    ASND_SetVoice(voice,VOICE_MONO_16BIT,44100,0,(u8 *)intro_pcm,intro_pcm_size,200,200,NULL);
-    sleep (2);
-    ASND_Pause(1);
-    return;
-  }
-#endif
 
   if (count > 0)
   {
