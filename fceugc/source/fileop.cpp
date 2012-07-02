@@ -523,7 +523,7 @@ static bool ParseDirEntries()
 				isdir = 1;
 			else
 				isdir = 0;
-
+			
 			// don't show the file if it's not a valid ROM
 			if(parseFilter && !isdir)
 			{
@@ -619,7 +619,8 @@ static bool ParseDirEntries()
 /***************************************************************************
  * Browse subdirectories
  **************************************************************************/
-int ParseDirectory(bool waitParse, bool filter)
+int
+ParseDirectory(bool waitParse, bool filter)
 {
 	int retry = 1;
 	bool mounted = false;

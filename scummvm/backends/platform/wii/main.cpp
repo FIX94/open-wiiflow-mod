@@ -45,7 +45,6 @@
 #include <gxflux/gfx_con.h>
 
 #include "usbthread.h"
-u32 Exit_Channel[2]; // Exit Channel
 
 #ifdef __cplusplus
 extern "C" {
@@ -170,7 +169,8 @@ void wii_memstats(void) {
 int main(int argc, char *argv[]) {
 	s32 res;
 
-	IOS_ReloadIOS(58);
+	if(IOS_GetVersion() != 58)
+		IOS_ReloadIOS(58);
 
 #if defined(USE_WII_DI) && !defined(GAMECUBE)
 	DI_Init();
@@ -227,16 +227,6 @@ int main(int argc, char *argv[]) {
 #endif
 
 	CreateUSBKeepAliveThread();
-	if(argc > 2 && argv[2] != NULL && argv[3] != NULL)
-	{
-		sscanf(argv[2], "%08x", &Exit_Channel[0]);
-		sscanf(argv[3], "%08x", &Exit_Channel[1]);
-	}
-	else
-	{
-		Exit_Channel[0] = 0x00010008;
-		Exit_Channel[1] = 0x57494948;
-	}
 
 	res = scummvm_main(argc, argv);
 	g_system->quit();
@@ -263,7 +253,18 @@ int main(int argc, char *argv[]) {
 	gfx_deinit();
 	gfx_video_deinit();
 
-	WII_LaunchTitle(TITLE_ID(Exit_Channel[0], Exit_Channel[1]));
+	if( !!*(u32*)0x80001800 ) 
+	{
+		// Were we launched via HBC? (or via wiiflows stub replacement? :P)
+		void (*rld)() = (void (*)()) 0x80001800;
+		rld();
+	}
+	else
+	{
+		// Wii channel support
+		SYS_ResetSystem( SYS_RETURNTOMENU, 0, 0 );
+	}
+
 	return res;
 }
 

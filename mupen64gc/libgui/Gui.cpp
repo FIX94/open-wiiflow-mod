@@ -29,8 +29,6 @@
 #include "../main/wii64config.h"
 
 #include "../main/usbthread.h"
-#include "../menu/homebrew.h"
-#define TITLE_ID(x,y) (((u64)(x) << 32) | (y))
 
 extern "C" {
 #include "../gc_input/controller.h"
@@ -41,7 +39,6 @@ extern "C" {
 
 extern char shutdown;
 extern unsigned int dvd_hard_init;
-extern u32 Exit_Channel[2]; // Exit Channel
 
 namespace menu {
 
@@ -122,7 +119,7 @@ void Gui::draw()
 		 	VIDEO_WaitVSync();
 			if(shutdown == 1)	//Power off System
 				SYS_ResetSystem(SYS_POWEROFF, 0, 0);
-			else if(shutdown == 2)			//Return to Loader
+			else //Return to Loader/WiiFlow
 			{
 				#ifdef WII
 					if(dvd_hard_init) {
@@ -131,14 +128,6 @@ void Gui::draw()
 				#endif
 				void (*rld)() = (void (*)()) 0x80001800;
 				rld();
-			}
-			else // Return to wiiflow
-			{
-				gfx->swapBuffers();
-				VIDEO_SetBlack(true);
-				VIDEO_Flush();
-				WII_LaunchTitle(TITLE_ID(Exit_Channel[0], Exit_Channel[1]));
-				BootHomebrew();
 			}
 		}
 

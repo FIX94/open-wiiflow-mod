@@ -48,9 +48,6 @@
 #include "snes9x/controls.h"
 
 #include "usbthread.h"
-#include "homebrew.h"
-#define TITLE_ID(x,y) (((u64)(x) << 32) | (y))
-
 int ScreenshotRequested = 0;
 int ConfigRequested = 0;
 int ShutdownRequested = 0;
@@ -101,14 +98,16 @@ void ExitToWiiflow()
 		SaveSRAMAuto(SILENT);
 	ExitCleanup();
 
-	WII_Initialize();
-	WII_LaunchTitle(TITLE_ID(GCSettings.Exit_Channel[0], GCSettings.Exit_Channel[1]));
-
-	LoadHomebrew(GCSettings.Exit_Dol_File);
-	AddBootArgument(GCSettings.Exit_Dol_File);
-	AddBootArgument("EMULATOR_MAGIC");
-
-	BootHomebrew();
+	if( !!*(u32*)0x80001800 ) 
+	{
+		// Were we launched via HBC? (or via wiiflows stub replacement? :P)
+		exit(1);
+	}
+	else
+	{
+		// Wii channel support
+		SYS_ResetSystem( SYS_RETURNTOMENU, 0, 0 );
+	}
 }
 
 void ExitApp()
@@ -511,13 +510,13 @@ int main(int argc, char *argv[])
 		Settings.SuperScopeMaster = (GCSettings.Controller == CTRL_SCOPE ? true : false);
 		Settings.MouseMaster = (GCSettings.Controller == CTRL_MOUSE ? true : false);
 		Settings.JustifierMaster = (GCSettings.Controller == CTRL_JUST ? true : false);
-		SetControllers();
+		SetControllers ();
 
 		// stop checking if devices were removed/inserted
 		// since we're starting emulation again
 		HaltDeviceThread();
 
-		AudioStart();
+		AudioStart ();
 
 		CheckVideo = 2;	// force video update
 		prevRenderedFrameCount = IPPU.RenderedFramesCount;
@@ -525,15 +524,15 @@ int main(int argc, char *argv[])
 
 		while(1) // emulation loop
 		{
-			S9xMainLoop();
-			ReportButtons();
+			S9xMainLoop ();
+			ReportButtons ();
 
 			if(ResetRequested)
 			{
-				S9xSoftReset(); // reset game
+				S9xSoftReset (); // reset game
 				ResetRequested = 0;
 			}
-			if(ConfigRequested)
+			if (ConfigRequested)
 			{
 				ConfigRequested = 0;
 				ResetVideo_Menu();

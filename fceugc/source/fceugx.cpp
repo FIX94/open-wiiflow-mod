@@ -44,9 +44,6 @@
 #include "fceultra/types.h"
 
 #include "usbthread.h"
-#include "homebrew.h"
-#define TITLE_ID(x,y) (((u64)(x) << 32) | (y))
-
 void FCEUD_Update(uint8 *XBuf, int32 *Buffer, int Count);
 void FCEUD_UpdatePulfrich(uint8 *XBuf, int32 *Buffer, int Count);
 void FCEUD_UpdateLeft(uint8 *XBuf, int32 *Buffer, int Count);
@@ -106,14 +103,16 @@ void ExitToWiiflow()
 		SaveRAMAuto(SILENT);
 	ExitCleanup();
 
-	WII_Initialize();
-	WII_LaunchTitle(TITLE_ID(GCSettings.Exit_Channel[0], GCSettings.Exit_Channel[1]));
-
-	LoadHomebrew(GCSettings.Exit_Dol_File);
-	AddBootArgument(GCSettings.Exit_Dol_File);
-	AddBootArgument("EMULATOR_MAGIC");
-
-	BootHomebrew();
+	if( !!*(u32*)0x80001800 ) 
+	{
+		// Were we launched via HBC? (or via wiiflows stub replacement? :P)
+		exit(1);
+	}
+	else
+	{
+		// Wii channel support
+		SYS_ResetSystem( SYS_RETURNTOMENU, 0, 0 );
+	}
 }
 
 void ExitApp()

@@ -3,7 +3,7 @@
  *
  *  Genesis Plus GX configuration file support
  *
- *  Copyright Eke-Eke (2007-2011)
+ *  Copyright Eke-Eke (2007-2012)
  *
  *  Redistribution and use of this code or any derivative works are permitted
  *  provided that the following conditions are met:
@@ -39,7 +39,6 @@
 
 #include "shared.h"
 #include "gui.h"
-#include "menu.h"
 #include "file_load.h"
 
 static int config_load(void)
@@ -193,44 +192,64 @@ void config_default(void)
   sprintf (config.lastdir[1][TYPE_SD],  "sd:%s/roms/",  DEFAULT_PATH);
   sprintf (config.lastdir[2][TYPE_SD],  "sd:%s/roms/",  DEFAULT_PATH);
   sprintf (config.lastdir[3][TYPE_SD],  "sd:%s/roms/",  DEFAULT_PATH);
+  sprintf (config.lastdir[4][TYPE_SD],  "sd:%s/roms/",  DEFAULT_PATH);
   sprintf (config.lastdir[0][TYPE_USB], "usb:%s/roms/", DEFAULT_PATH);
   sprintf (config.lastdir[1][TYPE_USB], "usb:%s/roms/", DEFAULT_PATH);
   sprintf (config.lastdir[2][TYPE_USB], "usb:%s/roms/", DEFAULT_PATH);
   sprintf (config.lastdir[3][TYPE_USB], "usb:%s/roms/", DEFAULT_PATH);
+  sprintf (config.lastdir[4][TYPE_USB], "usb:%s/roms/", DEFAULT_PATH);
   sprintf (config.lastdir[0][TYPE_DVD], "dvd:%s/roms/", DEFAULT_PATH);
   sprintf (config.lastdir[1][TYPE_DVD], "dvd:%s/roms/", DEFAULT_PATH);
   sprintf (config.lastdir[2][TYPE_DVD], "dvd:%s/roms/", DEFAULT_PATH);
   sprintf (config.lastdir[3][TYPE_DVD], "dvd:%s/roms/", DEFAULT_PATH);
+  sprintf (config.lastdir[4][TYPE_DVD], "dvd:%s/roms/", DEFAULT_PATH);
 #else
   sprintf (config.lastdir[0][TYPE_SD],  "%s/roms/",  DEFAULT_PATH);
   sprintf (config.lastdir[1][TYPE_SD],  "%s/roms/",  DEFAULT_PATH);
   sprintf (config.lastdir[2][TYPE_SD],  "%s/roms/",  DEFAULT_PATH);
   sprintf (config.lastdir[3][TYPE_SD],  "%s/roms/",  DEFAULT_PATH);
+  sprintf (config.lastdir[4][TYPE_SD],  "%s/roms/",  DEFAULT_PATH);
   sprintf (config.lastdir[0][TYPE_DVD], "dvd:%s/roms/", DEFAULT_PATH);
   sprintf (config.lastdir[1][TYPE_DVD], "dvd:%s/roms/", DEFAULT_PATH);
   sprintf (config.lastdir[2][TYPE_DVD], "dvd:%s/roms/", DEFAULT_PATH);
   sprintf (config.lastdir[3][TYPE_DVD], "dvd:%s/roms/", DEFAULT_PATH);
+  sprintf (config.lastdir[4][TYPE_DVD], "dvd:%s/roms/", DEFAULT_PATH);
 #endif
 
-  /* try to restore settings from config file */
-  if (!config_load()) GUI_WaitPrompt("Info","Default Settings restored");
-
-  /* hot swap requires at least a first initialization */
-  config.hot_swap &= 1;
+  /* try to restore user config */
+  int loaded = config_load();
 
   /* restore inputs */
   input_init();
 
 #ifndef HW_RVL
-  /* support for progressive mode (480p) if component cable has been detected */
-  if (VIDEO_HaveComponentCable())
+  /* detect progressive mode enable/disable requests */
+  PAD_ScanPads();
+  if (PAD_ButtonsHeld(0) & PAD_BUTTON_B)
   {
-    /* switch into configured video mode */
-    vmode = config.v_prog ? &TVNtsc480Prog : &TVNtsc480IntDf;
+    /* swap progressive mode enable flag and play some sound to inform user */
+    config.v_prog ^= 1;
+    ASND_Pause(0);
+    int voice = ASND_GetFirstUnusedVoice();
+    ASND_SetVoice(voice,VOICE_MONO_16BIT,44100,0,(u8 *)intro_pcm,intro_pcm_size,200,200,NULL);
+    sleep (2);
+    ASND_Pause(1);
+  }
+
+  /* switch into 480p if component cable has been detected and progressive mode is enabled */
+  if (VIDEO_HaveComponentCable() && config.v_prog)
+  {
+    vmode = &TVNtsc480Prog;
     VIDEO_Configure (vmode);
     VIDEO_Flush();
     VIDEO_WaitVSync();
     VIDEO_WaitVSync();
   }
 #endif
+
+  /* inform user if default config is used */
+  if (!loaded)
+  {
+    GUI_WaitPrompt("Warning","Default Settings restored");
+  }
 }

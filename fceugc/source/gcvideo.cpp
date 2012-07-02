@@ -190,8 +190,6 @@ static GXRModeObj NTSC_240p =
         }
 };
 
-static GXRModeObj TV_Custom;
-
 /* TV Modes table */
 static GXRModeObj *tvmodes[2] = {
 	&NTSC_240p, &PAL_240p
@@ -463,6 +461,9 @@ static GXRModeObj * FindVideoMode()
 			break;
 		default:
 			mode = VIDEO_GetPreferredMode(NULL);
+			
+			if(mode == &TVPal574IntDfScale)
+				mode = &TVPal528IntDf;
 
 			#ifdef HW_DOL
 			/* we have component cables, but the preferred mode is interlaced
@@ -604,6 +605,21 @@ InitGCVideo ()
 	GX_SetCullMode (GX_CULL_NONE);
 }
 
+void ResetFbWidth(int width, GXRModeObj *rmode)
+{
+	if(rmode->fbWidth == width)
+		return;
+	
+	rmode->fbWidth = width;
+	
+	if(rmode != vmode)
+		return;
+	
+	GX_InvVtxCache();
+	VIDEO_Configure(rmode);
+	VIDEO_Flush();
+}
+
 /****************************************************************************
  * ResetVideo_Emu
  *
@@ -627,12 +643,10 @@ ResetVideo_Emu ()
 	{
 		rmode = FindVideoMode();
 		
-		if (!GCSettings.widescreen)
-		{
-			memcpy(&TV_Custom, rmode, sizeof(TV_Custom));
-			rmode = &TV_Custom;
-			rmode->fbWidth = 512;
-		}
+		if (GCSettings.widescreen)
+			ResetFbWidth(640, rmode);
+		else
+			ResetFbWidth(512, rmode);
 		
 		UpdateSampleRate(48130);
 		SetSampleRate();
