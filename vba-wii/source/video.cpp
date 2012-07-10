@@ -285,7 +285,7 @@ static GXRModeObj * FindVideoMode()
 			mode = &TVNtsc480Prog;
 			break;
 		case 3: // PAL (50Hz)
-			mode = &TVPal574IntDfScale;
+			mode = &TVPal576IntDfScale;
 			break;
 		case 4: // PAL (60Hz)
 			mode = &TVEurgb60Hz480IntDf;
@@ -313,7 +313,7 @@ static GXRModeObj * FindVideoMode()
 	#ifdef HW_RVL
 	bool pal = false;
 
-	if (mode == &TVPal574IntDfScale)
+	if (mode == &TVPal576IntDfScale)
 		pal = true;
 
 	if (CONF_GetAspectRatio() == CONF_ASPECT_16_9)
@@ -401,10 +401,10 @@ InitializeVideo ()
 	VIDEO_Init();
 
 	// Allocate the video buffers
-	xfb[0] = (u32 *) memalign(32, 640*574*2);
-	xfb[1] = (u32 *) memalign(32, 640*574*2);
-	DCInvalidateRange(xfb[0], 640*574*2);
-	DCInvalidateRange(xfb[1], 640*574*2);
+	xfb[0] = (u32 *) memalign(32, 640*576*2);
+	xfb[1] = (u32 *) memalign(32, 640*576*2);
+	DCInvalidateRange(xfb[0], 640*576*2);
+	DCInvalidateRange(xfb[1], 640*576*2);
 	xfb[0] = (u32 *) MEM_K0_TO_K1 (xfb[0]);
 	xfb[1] = (u32 *) MEM_K0_TO_K1 (xfb[1]);
 
