@@ -17,7 +17,7 @@
 #include "fceultra/driver.h"
 
 #define APPNAME			"FCE Ultra GX"
-#define APPVERSION		"3.2.9"
+#define APPVERSION		"3.3.1"
 #define APPFOLDER 		"fceugx"
 #define PREF_FILE_NAME	"settings_fceugx.xml"
 
@@ -127,6 +127,8 @@ extern int ExitRequested;
 extern char appPath[];
 extern char loadedFile[];
 extern int frameskip;
+extern int fskip;
+extern int fskipc;
 extern int turbomode;
 extern bool romLoaded;
 
