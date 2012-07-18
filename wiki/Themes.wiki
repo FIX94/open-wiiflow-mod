@@ -15,3 +15,5 @@ Since WiiFlow is always under development and new features may be introduced, th
 
 = List of Themes =
 [https://dl.dropbox.com/s/jh18j5kx5hciebg/StarNight_WiiFlowMod-r585_and_up.rar?dl=1 StarNight_r585_and_up] (source_menu included)
+[https://dl.dropbox.com/u/60919375/BlackWii_r585_and_up.zip?dl=1 BlackWii_r585_and_up] (source_menu included)
+[https://dl.dropbox.com/u/60919375/WhiteWii_r585_and_up.zip?dl=1 WhiteWii_r585_and_up] (source menu included)
