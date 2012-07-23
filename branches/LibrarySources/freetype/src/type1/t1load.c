@@ -4,7 +4,7 @@
 /*                                                                         */
 /*    Type 1 font loader (body).                                           */
 /*                                                                         */
-/*  Copyright 1996-2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008 by       */
+/*  Copyright 1996-2012 by                                                 */
 /*  David Turner, Robert Wilhelm, and Werner Lemberg.                      */
 /*                                                                         */
 /*  This file is part of the FreeType project, and may only be used,       */
@@ -65,9 +65,17 @@
 #include FT_CONFIG_CONFIG_H
 #include FT_MULTIPLE_MASTERS_H
 #include FT_INTERNAL_TYPE1_TYPES_H
+#include FT_INTERNAL_CALC_H
 
 #include "t1load.h"
 #include "t1errors.h"
+
+
+#ifdef FT_CONFIG_OPTION_INCREMENTAL
+#define IS_INCREMENTAL  ( face->root.internal->incremental_interface != 0 )
+#else
+#define IS_INCREMENTAL  0
+#endif
 
 
   /*************************************************************************/
@@ -213,10 +221,6 @@
   }
 
 
-#define FT_INT_TO_FIXED( a )  ( (a) << 16 )
-#define FT_FIXED_TO_INT( a )  ( FT_RoundFix( a ) >> 16 )
-
-
   /*************************************************************************/
   /*                                                                       */
   /* Given a normalized (blend) coordinate, figure out the design          */
@@ -230,7 +234,7 @@
 
 
     if ( ncv <= axismap->blend_points[0] )
-      return FT_INT_TO_FIXED( axismap->design_points[0] );
+      return INT_TO_FIXED( axismap->design_points[0] );
 
     for ( j = 1; j < axismap->num_points; ++j )
     {
@@ -241,7 +245,7 @@
                                  axismap->blend_points[j] -
                                    axismap->blend_points[j - 1] );
 
-        return FT_INT_TO_FIXED( axismap->design_points[j - 1] ) +
+        return INT_TO_FIXED( axismap->design_points[j - 1] ) +
                  FT_MulDiv( t,
                             axismap->design_points[j] -
                               axismap->design_points[j - 1],
@@ -249,7 +253,7 @@
       }
     }
 
-    return FT_INT_TO_FIXED( axismap->design_points[axismap->num_points - 1] );
+    return INT_TO_FIXED( axismap->design_points[axismap->num_points - 1] );
   }
 
 
@@ -305,7 +309,7 @@
                  FT_MM_Var*  *master )
   {
     FT_Memory        memory = face->root.memory;
-    FT_MM_Var       *mmvar;
+    FT_MM_Var       *mmvar = NULL;
     FT_Multi_Master  mmaster;
     FT_Error         error;
     FT_UInt          i;
@@ -331,8 +335,8 @@
     for ( i = 0 ; i < mmaster.num_axis; ++i )
     {
       mmvar->axis[i].name    = mmaster.axis[i].name;
-      mmvar->axis[i].minimum = FT_INT_TO_FIXED( mmaster.axis[i].minimum);
-      mmvar->axis[i].maximum = FT_INT_TO_FIXED( mmaster.axis[i].maximum);
+      mmvar->axis[i].minimum = INT_TO_FIXED( mmaster.axis[i].minimum);
+      mmvar->axis[i].maximum = INT_TO_FIXED( mmaster.axis[i].maximum);
       mmvar->axis[i].def     = ( mmvar->axis[i].minimum +
                                    mmvar->axis[i].maximum ) / 2;
                             /* Does not apply.  But this value is in range */
@@ -502,7 +506,7 @@
      if ( num_coords <= 4 && num_coords > 0 )
      {
        for ( i = 0; i < num_coords; ++i )
-         lcoords[i] = FT_FIXED_TO_INT( coords[i] );
+         lcoords[i] = FIXED_TO_INT( coords[i] );
        error = T1_Set_MM_Design( face, num_coords, lcoords );
      }
 
@@ -654,8 +658,8 @@
     }
     if ( num_designs == 0 || num_designs > T1_MAX_MM_DESIGNS )
     {
-      FT_ERROR(( "parse_blend_design_positions:" ));
-      FT_ERROR(( " incorrect number of designs: %d\n",
+      FT_ERROR(( "parse_blend_design_positions:"
+                 " incorrect number of designs: %d\n",
                  num_designs ));
       error = T1_Err_Invalid_File_Format;
       goto Exit;
@@ -687,8 +691,8 @@
         {
           if ( n_axis <= 0 || n_axis > T1_MAX_MM_AXIS )
           {
-            FT_ERROR(( "parse_blend_design_positions:" ));
-            FT_ERROR(( "  invalid number of axes: %d\n",
+            FT_ERROR(( "parse_blend_design_positions:"
+                       " invalid number of axes: %d\n",
                        n_axis ));
             error = T1_Err_Invalid_File_Format;
             goto Exit;
@@ -842,8 +846,8 @@
     }
     if ( num_designs == 0 || num_designs > T1_MAX_MM_DESIGNS )
     {
-      FT_ERROR(( "parse_weight_vector:" ));
-      FT_ERROR(( " incorrect number of designs: %d\n",
+      FT_ERROR(( "parse_weight_vector:"
+                 " incorrect number of designs: %d\n",
                  num_designs ));
       error = T1_Err_Invalid_File_Format;
       goto Exit;
@@ -859,9 +863,9 @@
     else if ( blend->num_designs != (FT_UInt)num_designs )
     {
       FT_ERROR(( "parse_weight_vector:"
-                 " /BlendDesignPosition and /WeightVector have\n" ));
-      FT_ERROR(( "                    "
-                 " different number of elements!\n" ));
+                 " /BlendDesignPosition and /WeightVector have\n"
+                 "                    "
+                 " different number of elements\n" ));
       error = T1_Err_Invalid_File_Format;
       goto Exit;
     }
@@ -899,7 +903,7 @@
   }
 
 
-#endif /* T1_CONFIG_OPTION_NO_MM_SUPPORT */
+#endif /* !T1_CONFIG_OPTION_NO_MM_SUPPORT */
 
 
 
@@ -924,6 +928,9 @@
     PS_Blend  blend = face->blend;
 
 
+    if ( blend && blend->num_designs == 0 )
+      blend = NULL;
+
     /* if the keyword has a dedicated callback, call it */
     if ( field->type == T1_FIELD_TYPE_CALLBACK )
     {
@@ -946,6 +953,12 @@
         objects     = (void**)blend->font_infos;
         max_objects = blend->num_designs;
       }
+      break;
+
+    case T1_FIELD_LOCATION_FONT_EXTRA:
+      dummy_object = &face->type1.font_extra;
+      objects      = &dummy_object;
+      max_objects  = 0;
       break;
 
     case T1_FIELD_LOCATION_PRIVATE:
@@ -998,13 +1011,24 @@
       max_objects  = 0;
     }
 
-    if ( field->type == T1_FIELD_TYPE_INTEGER_ARRAY ||
-         field->type == T1_FIELD_TYPE_FIXED_ARRAY   )
-      error = T1_Load_Field_Table( &loader->parser, field,
-                                   objects, max_objects, 0 );
+    if ( *objects )
+    {
+      if ( field->type == T1_FIELD_TYPE_INTEGER_ARRAY ||
+           field->type == T1_FIELD_TYPE_FIXED_ARRAY   )
+        error = T1_Load_Field_Table( &loader->parser, field,
+                                     objects, max_objects, 0 );
+      else
+        error = T1_Load_Field( &loader->parser, field,
+                               objects, max_objects, 0 );
+    }
     else
-      error = T1_Load_Field( &loader->parser, field,
-                             objects, max_objects, 0 );
+    {
+      FT_TRACE1(( "t1_load_keyword: ignoring keyword `%s'"
+                  " which is not valid at this point\n"
+                  "                 (probably due to missing keywords)\n",
+                 field->ident ));
+      error = T1_Err_Ok;
+    }
 
   Exit:
     return error;
@@ -1024,7 +1048,8 @@
   static int
   read_binary_data( T1_Parser  parser,
                     FT_Long*   size,
-                    FT_Byte**  base )
+                    FT_Byte**  base,
+                    FT_Bool    incremental )
   {
     FT_Byte*  cur;
     FT_Byte*  limit = parser->root.limit;
@@ -1042,7 +1067,8 @@
 
     if ( cur < limit && ft_isdigit( *cur ) )
     {
-      *size = T1_ToInt( parser );
+      FT_Long  s = T1_ToInt( parser );
+
 
       T1_Skip_PS_Token( parser );   /* `RD' or `-|' or something else */
 
@@ -1050,12 +1076,20 @@
       /* `RD' or `-|' token                          */
       *base = parser->root.cursor + 1;
 
-      parser->root.cursor += *size + 1;
-      return !parser->root.error;
+      if ( s >= 0 && s < limit - *base )
+      {
+        parser->root.cursor += s + 1;
+        *size = s;
+        return !parser->root.error;
+      }
     }
 
-    FT_ERROR(( "read_binary_data: invalid size field\n" ));
-    parser->root.error = T1_Err_Invalid_File_Format;
+    if( !incremental )
+    {
+      FT_ERROR(( "read_binary_data: invalid size field\n" ));
+      parser->root.error = T1_Err_Invalid_File_Format;
+    }
+
     return 0;
   }
 
@@ -1064,8 +1098,8 @@
   /* and `/CharStrings' dictionaries.                                */
 
   static void
-  parse_font_matrix( T1_Face    face,
-                     T1_Loader  loader )
+  t1_parse_font_matrix( T1_Face    face,
+                        T1_Loader  loader )
   {
     T1_Parser   parser = &loader->parser;
     FT_Matrix*  matrix = &face->type1.font_matrix;
@@ -1088,7 +1122,7 @@
 
     if ( temp_scale == 0 )
     {
-      FT_ERROR(( "parse_font_matrix: invalid font matrix\n" ));
+      FT_ERROR(( "t1_parse_font_matrix: invalid font matrix\n" ));
       parser->root.error = T1_Err_Invalid_File_Format;
       return;
     }
@@ -1108,7 +1142,7 @@
       temp[2] = FT_DivFix( temp[2], temp_scale );
       temp[4] = FT_DivFix( temp[4], temp_scale );
       temp[5] = FT_DivFix( temp[5], temp_scale );
-      temp[3] = 0x10000L;
+      temp[3] = temp[3] < 0 ? -0x10000L : 0x10000L;
     }
 
     matrix->xx = temp[0];
@@ -1137,7 +1171,7 @@
     cur = parser->root.cursor;
     if ( cur >= limit )
     {
-      FT_ERROR(( "parse_encoding: out of bounds!\n" ));
+      FT_ERROR(( "parse_encoding: out of bounds\n" ));
       parser->root.error = T1_Err_Invalid_File_Format;
       return;
     }
@@ -1376,15 +1410,17 @@
       FT_Byte*  base;
 
 
-      /* If the next token isn't `dup' we are done. */
-      if ( ft_strncmp( (char*)parser->root.cursor, "dup", 3 ) != 0 )
+      /* If we are out of data, or if the next token isn't `dup', */
+      /* we are done.                                             */
+      if ( parser->root.cursor + 4 >= parser->root.limit          ||
+          ft_strncmp( (char*)parser->root.cursor, "dup", 3 ) != 0 )
         break;
 
       T1_Skip_PS_Token( parser );       /* `dup' */
 
       idx = T1_ToInt( parser );
 
-      if ( !read_binary_data( parser, &size, &base ) )
+      if ( !read_binary_data( parser, &size, &base, IS_INCREMENTAL ) )
         return;
 
       /* The binary string is followed by one token, e.g. `NP' */
@@ -1396,7 +1432,8 @@
         return;
       T1_Skip_Spaces  ( parser );
 
-      if ( ft_strncmp( (char*)parser->root.cursor, "put", 3 ) == 0 )
+      if ( parser->root.cursor + 4 < parser->root.limit            &&
+           ft_strncmp( (char*)parser->root.cursor, "put", 3 ) == 0 )
       {
         T1_Skip_PS_Token( parser ); /* skip `put' */
         T1_Skip_Spaces  ( parser );
@@ -1569,7 +1606,7 @@
         cur++;                              /* skip `/' */
         len = parser->root.cursor - cur;
 
-        if ( !read_binary_data( parser, &size, &base ) )
+        if ( !read_binary_data( parser, &size, &base, IS_INCREMENTAL ) )
           return;
 
         /* for some non-standard fonts like `Optima' which provides */
@@ -1761,7 +1798,7 @@
 #include "t1tokens.h"
 
     /* now add the special functions... */
-    T1_FIELD_CALLBACK( "FontMatrix",           parse_font_matrix,
+    T1_FIELD_CALLBACK( "FontMatrix",           t1_parse_font_matrix,
                        T1_FIELD_DICT_FONTDICT )
     T1_FIELD_CALLBACK( "Encoding",             parse_encoding,
                        T1_FIELD_DICT_FONTDICT )
@@ -1858,7 +1895,7 @@
 
 
         parser->root.cursor = start_binary;
-        if ( !read_binary_data( parser, &s, &b ) )
+        if ( !read_binary_data( parser, &s, &b, IS_INCREMENTAL ) )
           return T1_Err_Invalid_File_Format;
         have_integer = 0;
       }
@@ -1871,7 +1908,7 @@
 
 
         parser->root.cursor = start_binary;
-        if ( !read_binary_data( parser, &s, &b ) )
+        if ( !read_binary_data( parser, &s, &b, IS_INCREMENTAL ) )
           return T1_Err_Invalid_File_Format;
         have_integer = 0;
       }
@@ -1944,8 +1981,8 @@
 
               if ( !( dict & keyword->dict ) )
               {
-                FT_TRACE1(( "parse_dict: found %s but ignoring it "
-                            "since it is in the wrong dictionary\n",
+                FT_TRACE1(( "parse_dict: found `%s' but ignoring it"
+                            " since it is in the wrong dictionary\n",
                             keyword->ident ));
                 break;
               }
@@ -2129,8 +2166,10 @@
         }
       }
     }
+    else
+      face->len_buildchar = 0;
 
-#endif /* T1_CONFIG_OPTION_NO_MM_SUPPORT */
+#endif /* !T1_CONFIG_OPTION_NO_MM_SUPPORT */
 
     /* now, propagate the subrs, charstrings, and glyphnames tables */
     /* to the Type1 data                                            */
@@ -2145,12 +2184,10 @@
       type1->subrs_len   = loader.subrs.lengths;
     }
 
-#ifdef FT_CONFIG_OPTION_INCREMENTAL
-    if ( !face->root.internal->incremental_interface )
-#endif
+    if ( !IS_INCREMENTAL )
       if ( !loader.charstrings.init )
       {
-        FT_ERROR(( "T1_Open_Face: no `/CharStrings' array in face!\n" ));
+        FT_ERROR(( "T1_Open_Face: no `/CharStrings' array in face\n" ));
         error = T1_Err_Invalid_File_Format;
       }
 
@@ -2177,10 +2214,10 @@
       /* OK, we do the following: for each element in the encoding  */
       /* table, look up the index of the glyph having the same name */
       /* the index is then stored in type1.encoding.char_index, and */
-      /* a the name to type1.encoding.char_name                     */
+      /* the name to type1.encoding.char_name                       */
 
-      min_char = +32000;
-      max_char = -32000;
+      min_char = 0;
+      max_char = 0;
 
       charcode = 0;
       for ( ; charcode < loader.encoding_table.max_elems; charcode++ )
@@ -2206,23 +2243,12 @@
               {
                 if ( charcode < min_char )
                   min_char = charcode;
-                if ( charcode > max_char )
-                  max_char = charcode;
+                if ( charcode >= max_char )
+                  max_char = charcode + 1;
               }
               break;
             }
           }
-      }
-
-      /*
-       *  Yes, this happens: Certain PDF-embedded fonts have only a
-       *  `.notdef' glyph defined!
-       */
-
-      if ( min_char > max_char )
-      {
-        min_char = 0;
-        max_char = loader.encoding_table.max_elems;
       }
 
       type1->encoding.code_first = min_char;

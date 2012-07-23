@@ -58,7 +58,5 @@ ifdef BUILD_PROJECT
 
 endif
 
-libdir=$(DEVKITPRO)/libogc/lib/wii
-includedir=$(DEVKITPRO)/libogc/include
 
 # EOF

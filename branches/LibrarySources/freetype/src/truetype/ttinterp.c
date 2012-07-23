@@ -4,8 +4,8 @@
 /*                                                                         */
 /*    TrueType bytecode interpreter (body).                                */
 /*                                                                         */
-/*  Copyright 1996-2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008 by       */
-/*  David Turner, Robert Wilhelm, and Werner Lemberg.                      */
+/*  Copyright 1996-2012                                                    */
+/*  by David Turner, Robert Wilhelm, and Werner Lemberg.                   */
 /*                                                                         */
 /*  This file is part of the FreeType project, and may only be used,       */
 /*  modified, and distributed under the terms of the FreeType project      */
@@ -14,6 +14,10 @@
 /*  understand and accept it fully.                                        */
 /*                                                                         */
 /***************************************************************************/
+
+
+/* Greg Hitchcock from Microsoft has helped a lot in resolving unclear */
+/* issues; many thanks!                                                */
 
 
 #include <ft2build.h>
@@ -48,7 +52,7 @@
   /*                                                                       */
   /* In order to detect infinite loops in the code, we set up a counter    */
   /* within the run loop.  A single stroke of interpretation is now        */
-  /* limited to a maximal number of opcodes defined below.                 */
+  /* limited to a maximum number of opcodes defined below.                 */
   /*                                                                       */
 #define MAX_RUNNABLE_OPCODES  1000000L
 
@@ -223,9 +227,10 @@
 
   /*************************************************************************/
   /*                                                                       */
-  /* A simple bounds-checking macro.                                       */
+  /* Two simple bounds-checking macros.                                    */
   /*                                                                       */
-#define BOUNDS( x, n )  ( (FT_UInt)(x) >= (FT_UInt)(n) )
+#define BOUNDS( x, n )   ( (FT_UInt)(x)  >= (FT_UInt)(n)  )
+#define BOUNDSL( x, n )  ( (FT_ULong)(x) >= (FT_ULong)(n) )
 
 #undef  SUCCESS
 #define SUCCESS  0
@@ -476,8 +481,7 @@
     return TT_Err_Ok;
 
   Fail_Memory:
-    FT_ERROR(( "Init_Context: not enough memory for 0x%08lx\n",
-               (FT_Long)exec ));
+    FT_ERROR(( "Init_Context: not enough memory for %p\n", exec ));
     TT_Done_Context( exec );
 
     return error;
@@ -508,7 +512,7 @@
   /* <Return>                                                              */
   /*    FreeType error code.  0 means success.                             */
   /*                                                                       */
-  static FT_Error
+  FT_LOCAL_DEF( FT_Error )
   Update_Max( FT_Memory  memory,
               FT_ULong*  size,
               FT_Long    multiplier,
@@ -594,6 +598,12 @@
       exec->storage   = size->storage;
 
       exec->twilight  = size->twilight;
+
+      /* In case of multi-threading it can happen that the old size object */
+      /* no longer exists, thus we must clear all glyph zone references.   */
+      ft_memset( &exec->zp0, 0, sizeof ( exec->zp0 ) );
+      exec->zp1 = exec->zp0;
+      exec->zp2 = exec->zp0;
     }
 
     /* XXX: We reserve a little more elements on the stack to deal safely */
@@ -658,9 +668,9 @@
     FT_Int  i;
 
 
-    /* XXXX: Will probably disappear soon with all the code range */
-    /*       management, which is now rather obsolete.            */
-    /*                                                            */
+    /* XXX: Will probably disappear soon with all the code range */
+    /*      management, which is now rather obsolete.            */
+    /*                                                           */
     size->num_function_defs    = exec->numFDefs;
     size->num_instruction_defs = exec->numIDefs;
 
@@ -705,7 +715,7 @@
     FT_Error  error;
 
 
-    if ( ( error = TT_Goto_CodeRange( exec, tt_coderange_glyph, 0  ) )
+    if ( ( error = TT_Goto_CodeRange( exec, tt_coderange_glyph, 0 ) )
            != TT_Err_Ok )
       return error;
 
@@ -791,9 +801,9 @@
 
       /* allocate object */
       if ( FT_NEW( exec ) )
-        goto Exit;
+        goto Fail;
 
-      /* initialize it */
+      /* initialize it; in case of error this deallocates `exec' too */
       error = Init_Context( exec, memory );
       if ( error )
         goto Fail;
@@ -802,13 +812,10 @@
       driver->context = exec;
     }
 
-  Exit:
     return driver->context;
 
   Fail:
-    FT_FREE( exec );
-
-    return 0;
+    return NULL;
   }
 
 
@@ -982,8 +989,8 @@
     /*  INS_$83   */  PACK( 0, 0 ),
     /*  INS_$84   */  PACK( 0, 0 ),
     /*  ScanCTRL  */  PACK( 1, 0 ),
-    /*  SDVPTL[0] */  PACK( 2, 0 ),
-    /*  SDVPTL[1] */  PACK( 2, 0 ),
+    /*  SDPVTL[0] */  PACK( 2, 0 ),
+    /*  SDPVTL[1] */  PACK( 2, 0 ),
     /*  GetINFO   */  PACK( 1, 1 ),
     /*  IDEF      */  PACK( 1, 0 ),
     /*  ROLL      */  PACK( 3, 3 ),
@@ -1114,6 +1121,287 @@
   };
 
 
+#ifdef FT_DEBUG_LEVEL_TRACE
+
+  static
+  const char*  const opcode_name[256] =
+  {
+    "SVTCA y",
+    "SVTCA x",
+    "SPvTCA y",
+    "SPvTCA x",
+    "SFvTCA y",
+    "SFvTCA x",
+    "SPvTL ||",
+    "SPvTL +",
+    "SFvTL ||",
+    "SFvTL +",
+    "SPvFS",
+    "SFvFS",
+    "GPV",
+    "GFV",
+    "SFvTPv",
+    "ISECT",
+
+    "SRP0",
+    "SRP1",
+    "SRP2",
+    "SZP0",
+    "SZP1",
+    "SZP2",
+    "SZPS",
+    "SLOOP",
+    "RTG",
+    "RTHG",
+    "SMD",
+    "ELSE",
+    "JMPR",
+    "SCvTCi",
+    "SSwCi",
+    "SSW",
+
+    "DUP",
+    "POP",
+    "CLEAR",
+    "SWAP",
+    "DEPTH",
+    "CINDEX",
+    "MINDEX",
+    "AlignPTS",
+    "INS_$28",
+    "UTP",
+    "LOOPCALL",
+    "CALL",
+    "FDEF",
+    "ENDF",
+    "MDAP[0]",
+    "MDAP[1]",
+
+    "IUP[0]",
+    "IUP[1]",
+    "SHP[0]",
+    "SHP[1]",
+    "SHC[0]",
+    "SHC[1]",
+    "SHZ[0]",
+    "SHZ[1]",
+    "SHPIX",
+    "IP",
+    "MSIRP[0]",
+    "MSIRP[1]",
+    "AlignRP",
+    "RTDG",
+    "MIAP[0]",
+    "MIAP[1]",
+
+    "NPushB",
+    "NPushW",
+    "WS",
+    "RS",
+    "WCvtP",
+    "RCvt",
+    "GC[0]",
+    "GC[1]",
+    "SCFS",
+    "MD[0]",
+    "MD[1]",
+    "MPPEM",
+    "MPS",
+    "FlipON",
+    "FlipOFF",
+    "DEBUG",
+
+    "LT",
+    "LTEQ",
+    "GT",
+    "GTEQ",
+    "EQ",
+    "NEQ",
+    "ODD",
+    "EVEN",
+    "IF",
+    "EIF",
+    "AND",
+    "OR",
+    "NOT",
+    "DeltaP1",
+    "SDB",
+    "SDS",
+
+    "ADD",
+    "SUB",
+    "DIV",
+    "MUL",
+    "ABS",
+    "NEG",
+    "FLOOR",
+    "CEILING",
+    "ROUND[0]",
+    "ROUND[1]",
+    "ROUND[2]",
+    "ROUND[3]",
+    "NROUND[0]",
+    "NROUND[1]",
+    "NROUND[2]",
+    "NROUND[3]",
+
+    "WCvtF",
+    "DeltaP2",
+    "DeltaP3",
+    "DeltaCn[0]",
+    "DeltaCn[1]",
+    "DeltaCn[2]",
+    "SROUND",
+    "S45Round",
+    "JROT",
+    "JROF",
+    "ROFF",
+    "INS_$7B",
+    "RUTG",
+    "RDTG",
+    "SANGW",
+    "AA",
+
+    "FlipPT",
+    "FlipRgON",
+    "FlipRgOFF",
+    "INS_$83",
+    "INS_$84",
+    "ScanCTRL",
+    "SDVPTL[0]",
+    "SDVPTL[1]",
+    "GetINFO",
+    "IDEF",
+    "ROLL",
+    "MAX",
+    "MIN",
+    "ScanTYPE",
+    "InstCTRL",
+    "INS_$8F",
+
+    "INS_$90",
+    "INS_$91",
+    "INS_$92",
+    "INS_$93",
+    "INS_$94",
+    "INS_$95",
+    "INS_$96",
+    "INS_$97",
+    "INS_$98",
+    "INS_$99",
+    "INS_$9A",
+    "INS_$9B",
+    "INS_$9C",
+    "INS_$9D",
+    "INS_$9E",
+    "INS_$9F",
+
+    "INS_$A0",
+    "INS_$A1",
+    "INS_$A2",
+    "INS_$A3",
+    "INS_$A4",
+    "INS_$A5",
+    "INS_$A6",
+    "INS_$A7",
+    "INS_$A8",
+    "INS_$A9",
+    "INS_$AA",
+    "INS_$AB",
+    "INS_$AC",
+    "INS_$AD",
+    "INS_$AE",
+    "INS_$AF",
+
+    "PushB[0]",
+    "PushB[1]",
+    "PushB[2]",
+    "PushB[3]",
+    "PushB[4]",
+    "PushB[5]",
+    "PushB[6]",
+    "PushB[7]",
+    "PushW[0]",
+    "PushW[1]",
+    "PushW[2]",
+    "PushW[3]",
+    "PushW[4]",
+    "PushW[5]",
+    "PushW[6]",
+    "PushW[7]",
+
+    "MDRP[00]",
+    "MDRP[01]",
+    "MDRP[02]",
+    "MDRP[03]",
+    "MDRP[04]",
+    "MDRP[05]",
+    "MDRP[06]",
+    "MDRP[07]",
+    "MDRP[08]",
+    "MDRP[09]",
+    "MDRP[10]",
+    "MDRP[11]",
+    "MDRP[12]",
+    "MDRP[13]",
+    "MDRP[14]",
+    "MDRP[15]",
+
+    "MDRP[16]",
+    "MDRP[17]",
+    "MDRP[18]",
+    "MDRP[19]",
+    "MDRP[20]",
+    "MDRP[21]",
+    "MDRP[22]",
+    "MDRP[23]",
+    "MDRP[24]",
+    "MDRP[25]",
+    "MDRP[26]",
+    "MDRP[27]",
+    "MDRP[28]",
+    "MDRP[29]",
+    "MDRP[30]",
+    "MDRP[31]",
+
+    "MIRP[00]",
+    "MIRP[01]",
+    "MIRP[02]",
+    "MIRP[03]",
+    "MIRP[04]",
+    "MIRP[05]",
+    "MIRP[06]",
+    "MIRP[07]",
+    "MIRP[08]",
+    "MIRP[09]",
+    "MIRP[10]",
+    "MIRP[11]",
+    "MIRP[12]",
+    "MIRP[13]",
+    "MIRP[14]",
+    "MIRP[15]",
+
+    "MIRP[16]",
+    "MIRP[17]",
+    "MIRP[18]",
+    "MIRP[19]",
+    "MIRP[20]",
+    "MIRP[21]",
+    "MIRP[22]",
+    "MIRP[23]",
+    "MIRP[24]",
+    "MIRP[25]",
+    "MIRP[26]",
+    "MIRP[27]",
+    "MIRP[28]",
+    "MIRP[29]",
+    "MIRP[30]",
+    "MIRP[31]"
+  };
+
+#endif /* FT_DEBUG_LEVEL_TRACE */
+
+
   static
   const FT_Char  opcode_length[256] =
   {
@@ -1175,7 +1463,7 @@
 
 #else
 
-  /* compute (a*b)/2^14 with maximal accuracy and rounding */
+  /* compute (a*b)/2^14 with maximum accuracy and rounding */
   static FT_Int32
   TT_MulFix14( FT_Int32  a,
                FT_Int    b )
@@ -1205,7 +1493,7 @@
 #endif
 
 
-  /* compute (ax*bx+ay*by)/2^14 with maximal accuracy and rounding */
+  /* compute (ax*bx+ay*by)/2^14 with maximum accuracy and rounding */
   static FT_Int32
   TT_DotFix14( FT_Int32  ax,
                FT_Int32  ay,
@@ -1512,7 +1800,7 @@
 
     /* NOTE: Because the last instruction of a program may be a CALL */
     /*       which will return to the first byte *after* the code    */
-    /*       range, we test for AIP <= Size, instead of AIP < Size.  */
+    /*       range, we test for aIP <= Size, instead of aIP < Size.  */
 
     if ( aIP > range->size )
     {
@@ -1730,7 +2018,8 @@
       if ( distance && val < 0 )
         val = 0;
     }
-    else {
+    else
+    {
       val = distance - compensation;
       if ( val > 0 )
         val = 0;
@@ -2197,7 +2486,7 @@
     FT_ASSERT( !CUR.face->unpatented_hinting );
 #endif
 
-    return TT_DotFix14( dx, dy,
+    return TT_DotFix14( (FT_UInt32)dx, (FT_UInt32)dy,
                         CUR.GS.projVector.x,
                         CUR.GS.projVector.y );
   }
@@ -2223,7 +2512,7 @@
   Dual_Project( EXEC_OP_ FT_Pos  dx,
                          FT_Pos  dy )
   {
-    return TT_DotFix14( dx, dy,
+    return TT_DotFix14( (FT_UInt32)dx, (FT_UInt32)dy,
                         CUR.GS.dualVector.x,
                         CUR.GS.dualVector.y );
   }
@@ -2468,7 +2757,7 @@
     W = Vx * Vx + Vy * Vy;
 
     /* Now, we want that Sqrt( W ) = 0x4000 */
-    /* Or 0x10000000 <= W < 0x10004000        */
+    /* Or 0x10000000 <= W < 0x10004000      */
 
     if ( Vx < 0 )
     {
@@ -2555,6 +2844,17 @@
 
     A = p1->x - p2->x;
     B = p1->y - p2->y;
+
+    /* If p1 == p2, SPVTL and SFVTL behave the same as */
+    /* SPVTCA[X] and SFVTCA[X], respectively.          */
+    /*                                                 */
+    /* Confirmed by Greg Hitchcock.                    */
+
+    if ( A == 0 && B == 0 )
+    {
+      A    = 0x4000;
+      aOpc = 0;
+    }
 
     if ( ( aOpc & 1 ) != 0 )
     {
@@ -2810,14 +3110,9 @@
     CUR.GS.single_width_cutin = (FT_F26Dot6)args[0];
 
 
-    /* XXX: UNDOCUMENTED! or bug in the Windows engine?   */
-    /*                                                    */
-    /*      It seems that the value that is read here is  */
-    /*      expressed in 16.16 format rather than in font */
-    /*      units.                                        */
-    /*                                                    */
-#define DO_SSW                                                 \
-    CUR.GS.single_width_value = (FT_F26Dot6)( args[0] >> 10 );
+#define DO_SSW                                                     \
+    CUR.GS.single_width_value = TT_MULFIX( args[0],                \
+                                           CUR.tt_metrics.scale );
 
 
 #define DO_FLIPON            \
@@ -2881,38 +3176,60 @@
     args[0] = CUR.top;
 
 
-#define DO_CINDEX                           \
-  {                                         \
-    FT_Long  L;                             \
-                                            \
-                                            \
-    L = args[0];                            \
-                                            \
-    if ( L <= 0 || L > CUR.args )           \
-      CUR.error = TT_Err_Invalid_Reference; \
-    else                                    \
-      args[0] = CUR.stack[CUR.args - L];    \
+#define DO_CINDEX                             \
+  {                                           \
+    FT_Long  L;                               \
+                                              \
+                                              \
+    L = args[0];                              \
+                                              \
+    if ( L <= 0 || L > CUR.args )             \
+    {                                         \
+      if ( CUR.pedantic_hinting )             \
+        CUR.error = TT_Err_Invalid_Reference; \
+      args[0] = 0;                            \
+    }                                         \
+    else                                      \
+      args[0] = CUR.stack[CUR.args - L];      \
   }
 
 
-#define DO_JROT               \
-    if ( args[1] != 0 )       \
-    {                         \
-      CUR.IP      += args[0]; \
-      CUR.step_ins = FALSE;   \
+#define DO_JROT                                                   \
+    if ( args[1] != 0 )                                           \
+    {                                                             \
+      if ( args[0] == 0 && CUR.args == 0 )                        \
+        CUR.error = TT_Err_Bad_Argument;                          \
+      CUR.IP += args[0];                                          \
+      if ( CUR.IP < 0                                          || \
+           ( CUR.callTop > 0                                 &&   \
+             CUR.IP > CUR.callStack[CUR.callTop - 1].Cur_End ) )  \
+        CUR.error = TT_Err_Bad_Argument;                          \
+      CUR.step_ins = FALSE;                                       \
     }
 
 
-#define DO_JMPR             \
-    CUR.IP      += args[0]; \
+#define DO_JMPR                                                 \
+    if ( args[0] == 0 && CUR.args == 0 )                        \
+      CUR.error = TT_Err_Bad_Argument;                          \
+    CUR.IP += args[0];                                          \
+    if ( CUR.IP < 0                                          || \
+         ( CUR.callTop > 0                                 &&   \
+           CUR.IP > CUR.callStack[CUR.callTop - 1].Cur_End ) )  \
+      CUR.error = TT_Err_Bad_Argument;                          \
     CUR.step_ins = FALSE;
 
 
-#define DO_JROF               \
-    if ( args[1] == 0 )       \
-    {                         \
-      CUR.IP      += args[0]; \
-      CUR.step_ins = FALSE;   \
+#define DO_JROF                                                   \
+    if ( args[1] == 0 )                                           \
+    {                                                             \
+      if ( args[0] == 0 && CUR.args == 0 )                        \
+        CUR.error = TT_Err_Bad_Argument;                          \
+      CUR.IP += args[0];                                          \
+      if ( CUR.IP < 0                                          || \
+           ( CUR.callTop > 0                                 &&   \
+             CUR.IP > CUR.callStack[CUR.callTop - 1].Cur_End ) )  \
+        CUR.error = TT_Err_Bad_Argument;                          \
+      CUR.step_ins = FALSE;                                       \
     }
 
 
@@ -2995,39 +3312,39 @@
     args[0] = FT_PIX_CEIL( args[0] );
 
 
-#define DO_RS                          \
-   {                                   \
-     FT_ULong  I = (FT_ULong)args[0];  \
-                                       \
-                                       \
-     if ( BOUNDS( I, CUR.storeSize ) ) \
-     {                                 \
-       if ( CUR.pedantic_hinting )     \
-       {                               \
-         ARRAY_BOUND_ERROR;            \
-       }                               \
-       else                            \
-         args[0] = 0;                  \
-     }                                 \
-     else                              \
-       args[0] = CUR.storage[I];       \
+#define DO_RS                           \
+   {                                    \
+     FT_ULong  I = (FT_ULong)args[0];   \
+                                        \
+                                        \
+     if ( BOUNDSL( I, CUR.storeSize ) ) \
+     {                                  \
+       if ( CUR.pedantic_hinting )      \
+       {                                \
+         ARRAY_BOUND_ERROR;             \
+       }                                \
+       else                             \
+         args[0] = 0;                   \
+     }                                  \
+     else                               \
+       args[0] = CUR.storage[I];        \
    }
 
 
-#define DO_WS                          \
-   {                                   \
-     FT_ULong  I = (FT_ULong)args[0];  \
-                                       \
-                                       \
-     if ( BOUNDS( I, CUR.storeSize ) ) \
-     {                                 \
-       if ( CUR.pedantic_hinting )     \
-       {                               \
-         ARRAY_BOUND_ERROR;            \
-       }                               \
-     }                                 \
-     else                              \
-       CUR.storage[I] = args[1];       \
+#define DO_WS                           \
+   {                                    \
+     FT_ULong  I = (FT_ULong)args[0];   \
+                                        \
+                                        \
+     if ( BOUNDSL( I, CUR.storeSize ) ) \
+     {                                  \
+       if ( CUR.pedantic_hinting )      \
+       {                                \
+         ARRAY_BOUND_ERROR;             \
+       }                                \
+     }                                  \
+     else                               \
+       CUR.storage[I] = args[1];        \
    }
 
 
@@ -3036,7 +3353,7 @@
      FT_ULong  I = (FT_ULong)args[0];    \
                                          \
                                          \
-     if ( BOUNDS( I, CUR.cvtSize ) )     \
+     if ( BOUNDSL( I, CUR.cvtSize ) )    \
      {                                   \
        if ( CUR.pedantic_hinting )       \
        {                                 \
@@ -3055,7 +3372,7 @@
      FT_ULong  I = (FT_ULong)args[0];    \
                                          \
                                          \
-     if ( BOUNDS( I, CUR.cvtSize ) )     \
+     if ( BOUNDSL( I, CUR.cvtSize ) )    \
      {                                   \
        if ( CUR.pedantic_hinting )       \
        {                                 \
@@ -3072,7 +3389,7 @@
      FT_ULong  I = (FT_ULong)args[0];                           \
                                                                 \
                                                                 \
-     if ( BOUNDS( I, CUR.cvtSize ) )                            \
+     if ( BOUNDSL( I, CUR.cvtSize ) )                           \
      {                                                          \
        if ( CUR.pedantic_hinting )                              \
        {                                                        \
@@ -4094,17 +4411,19 @@
 
     if ( L <= 0 || L > CUR.args )
     {
-      CUR.error = TT_Err_Invalid_Reference;
-      return;
+      if ( CUR.pedantic_hinting )
+        CUR.error = TT_Err_Invalid_Reference;
     }
+    else
+    {
+      K = CUR.stack[CUR.args - L];
 
-    K = CUR.stack[CUR.args - L];
+      FT_ARRAY_MOVE( &CUR.stack[CUR.args - L    ],
+                     &CUR.stack[CUR.args - L + 1],
+                     ( L - 1 ) );
 
-    FT_ARRAY_MOVE( &CUR.stack[CUR.args - L    ],
-                   &CUR.stack[CUR.args - L + 1],
-                   ( L - 1 ) );
-
-    CUR.stack[CUR.args - 1] = K;
+      CUR.stack[CUR.args - 1] = K;
+    }
   }
 
 
@@ -4153,7 +4472,7 @@
       CUR.length = opcode_length[CUR.opcode];
       if ( CUR.length < 0 )
       {
-        if ( CUR.IP + 1 > CUR.codeSize )
+        if ( CUR.IP + 1 >= CUR.codeSize )
           goto Fail_Overflow;
         CUR.length = 2 - CUR.length * CUR.code[CUR.IP + 1];
       }
@@ -4293,13 +4612,21 @@
       CUR.numFDefs++;
     }
 
+    /* Although FDEF takes unsigned 32-bit integer,  */
+    /* func # must be within unsigned 16-bit integer */
+    if ( n > 0xFFFFU )
+    {
+      CUR.error = TT_Err_Too_Many_Function_Defs;
+      return;
+    }
+
     rec->range  = CUR.curRange;
-    rec->opc    = n;
+    rec->opc    = (FT_UInt16)n;
     rec->start  = CUR.IP + 1;
     rec->active = TRUE;
 
     if ( n > CUR.maxFunc )
-      CUR.maxFunc = n;
+      CUR.maxFunc = (FT_UInt16)n;
 
     /* Now skip the whole function definition. */
     /* We don't allow nested IDEFS & FDEFs.    */
@@ -4314,6 +4641,7 @@
         return;
 
       case 0x2D:   /* ENDF */
+        rec->end = CUR.IP;
         return;
       }
     }
@@ -4385,7 +4713,7 @@
     /* first of all, check the index */
 
     F = args[0];
-    if ( BOUNDS( F, CUR.maxFunc + 1 ) )
+    if ( BOUNDSL( F, CUR.maxFunc + 1 ) )
       goto Fail;
 
     /* Except for some old Apple fonts, all functions in a TrueType */
@@ -4431,6 +4759,7 @@
     pCrec->Caller_IP    = CUR.IP + 1;
     pCrec->Cur_Count    = 1;
     pCrec->Cur_Restart  = def->start;
+    pCrec->Cur_End      = def->end;
 
     CUR.callTop++;
 
@@ -4461,7 +4790,7 @@
 
     /* first of all, check the index */
     F = args[1];
-    if ( BOUNDS( F, CUR.maxFunc + 1 ) )
+    if ( BOUNDSL( F, CUR.maxFunc + 1 ) )
       goto Fail;
 
     /* Except for some old Apple fonts, all functions in a TrueType */
@@ -4509,6 +4838,7 @@
       pCrec->Caller_IP    = CUR.IP + 1;
       pCrec->Cur_Count    = (FT_Int)args[0];
       pCrec->Cur_Restart  = def->start;
+      pCrec->Cur_End      = def->end;
 
       CUR.callTop++;
 
@@ -4556,13 +4886,20 @@
       CUR.numIDefs++;
     }
 
-    def->opc    = args[0];
-    def->start  = CUR.IP+1;
+    /* opcode must be unsigned 8-bit integer */
+    if ( 0 > args[0] || args[0] > 0x00FF )
+    {
+      CUR.error = TT_Err_Too_Many_Instruction_Defs;
+      return;
+    }
+
+    def->opc    = (FT_Byte)args[0];
+    def->start  = CUR.IP + 1;
     def->range  = CUR.curRange;
     def->active = TRUE;
 
     if ( (FT_ULong)args[0] > CUR.maxIns )
-      CUR.maxIns = args[0];
+      CUR.maxIns = (FT_Byte)args[0];
 
     /* Now skip the whole function definition. */
     /* We don't allow nested IDEFs & FDEFs.    */
@@ -4717,8 +5054,8 @@
   /* Opcode range: 0x46-0x47                                               */
   /* Stack:        uint32 --> f26.6                                        */
   /*                                                                       */
-  /* BULLSHIT: Measures from the original glyph must be taken along the    */
-  /*           dual projection vector!                                     */
+  /* XXX: UNDOCUMENTED: Measures from the original glyph must be taken     */
+  /*      along the dual projection vector!                                */
   /*                                                                       */
   static void
   Ins_GC( INS_ARG )
@@ -4729,15 +5066,11 @@
 
     L = (FT_ULong)args[0];
 
-    if ( BOUNDS( L, CUR.zp2.n_points ) )
+    if ( BOUNDSL( L, CUR.zp2.n_points ) )
     {
       if ( CUR.pedantic_hinting )
-      {
         CUR.error = TT_Err_Invalid_Reference;
-        return;
-      }
-      else
-        R = 0;
+      R = 0;
     }
     else
     {
@@ -4781,8 +5114,8 @@
 
     CUR_Func_move( &CUR.zp2, L, args[1] - K );
 
-    /* not part of the specs, but here for safety */
-
+    /* UNDOCUMENTED!  The MS rasterizer does that with */
+    /* twilight points (confirmed by Greg Hitchcock)   */
     if ( CUR.GS.gep2 == 0 )
       CUR.zp2.org[L] = CUR.zp2.cur[L];
   }
@@ -4794,14 +5127,14 @@
   /* Opcode range: 0x49-0x4A                                               */
   /* Stack:        uint32 uint32 --> f26.6                                 */
   /*                                                                       */
-  /* BULLSHIT: Measure taken in the original glyph must be along the dual  */
-  /*           projection vector.                                          */
+  /* XXX: UNDOCUMENTED: Measure taken in the original glyph must be along  */
+  /*                    the dual projection vector.                        */
   /*                                                                       */
-  /* Second BULLSHIT: Flag attributes are inverted!                        */
-  /*                  0 => measure distance in original outline            */
-  /*                  1 => measure distance in grid-fitted outline         */
+  /* XXX: UNDOCUMENTED: Flag attributes are inverted!                      */
+  /*                      0 => measure distance in original outline        */
+  /*                      1 => measure distance in grid-fitted outline     */
   /*                                                                       */
-  /* Third one: `zp0 - zp1', and not `zp2 - zp1!                           */
+  /* XXX: UNDOCUMENTED: `zp0 - zp1', and not `zp2 - zp1!                   */
   /*                                                                       */
   static void
   Ins_MD( INS_ARG )
@@ -4813,14 +5146,11 @@
     K = (FT_UShort)args[1];
     L = (FT_UShort)args[0];
 
-    if( BOUNDS( L, CUR.zp0.n_points ) ||
-        BOUNDS( K, CUR.zp1.n_points ) )
+    if ( BOUNDS( L, CUR.zp0.n_points ) ||
+         BOUNDS( K, CUR.zp1.n_points ) )
     {
       if ( CUR.pedantic_hinting )
-      {
         CUR.error = TT_Err_Invalid_Reference;
-        return;
-      }
       D = 0;
     }
     else
@@ -4829,25 +5159,38 @@
         D = CUR_Func_project( CUR.zp0.cur + L, CUR.zp1.cur + K );
       else
       {
-        FT_Vector*  vec1 = CUR.zp0.orus + L;
-        FT_Vector*  vec2 = CUR.zp1.orus + K;
+        /* XXX: UNDOCUMENTED: twilight zone special case */
 
-
-        if ( CUR.metrics.x_scale == CUR.metrics.y_scale )
+        if ( CUR.GS.gep0 == 0 || CUR.GS.gep1 == 0 )
         {
-          /* this should be faster */
+          FT_Vector*  vec1 = CUR.zp0.org + L;
+          FT_Vector*  vec2 = CUR.zp1.org + K;
+
+
           D = CUR_Func_dualproj( vec1, vec2 );
-          D = TT_MULFIX( D, CUR.metrics.x_scale );
         }
         else
         {
-          FT_Vector  vec;
+          FT_Vector*  vec1 = CUR.zp0.orus + L;
+          FT_Vector*  vec2 = CUR.zp1.orus + K;
 
 
-          vec.x = TT_MULFIX( vec1->x - vec2->x, CUR.metrics.x_scale );
-          vec.y = TT_MULFIX( vec1->y - vec2->y, CUR.metrics.y_scale );
+          if ( CUR.metrics.x_scale == CUR.metrics.y_scale )
+          {
+            /* this should be faster */
+            D = CUR_Func_dualproj( vec1, vec2 );
+            D = TT_MULFIX( D, CUR.metrics.x_scale );
+          }
+          else
+          {
+            FT_Vector  vec;
 
-          D = CUR_fast_dualproj( &vec );
+
+            vec.x = TT_MULFIX( vec1->x - vec2->x, CUR.metrics.x_scale );
+            vec.y = TT_MULFIX( vec1->y - vec2->y, CUR.metrics.y_scale );
+
+            D = CUR_fast_dualproj( &vec );
+          }
         }
       }
     }
@@ -4866,7 +5209,8 @@
   Ins_SDPVTL( INS_ARG )
   {
     FT_Long    A, B, C;
-    FT_UShort  p1, p2;   /* was FT_Int in pas type ERROR */
+    FT_UShort  p1, p2;            /* was FT_Int in pas type ERROR */
+    FT_Int     aOpc = CUR.opcode;
 
 
     p1 = (FT_UShort)args[1];
@@ -4887,9 +5231,20 @@
 
       A = v1->x - v2->x;
       B = v1->y - v2->y;
+
+      /* If v1 == v2, SDPVTL behaves the same as */
+      /* SVTCA[X], respectively.                 */
+      /*                                         */
+      /* Confirmed by Greg Hitchcock.            */
+
+      if ( A == 0 && B == 0 )
+      {
+        A    = 0x4000;
+        aOpc = 0;
+      }
     }
 
-    if ( ( CUR.opcode & 1 ) != 0 )
+    if ( ( aOpc & 1 ) != 0 )
     {
       C =  B;   /* counter clockwise rotation */
       B =  A;
@@ -4907,7 +5262,7 @@
       B = v1->y - v2->y;
     }
 
-    if ( ( CUR.opcode & 1 ) != 0 )
+    if ( ( aOpc & 1 ) != 0 )
     {
       C =  B;   /* counter clockwise rotation */
       B =  A;
@@ -5099,7 +5454,7 @@
       return;
     }
 
-    if ( ( args[0] & 0x100 ) != 0 && CUR.tt_metrics.ppem < A )
+    if ( ( args[0] & 0x100 ) != 0 && CUR.tt_metrics.ppem <= A )
       CUR.GS.scan_control = TRUE;
 
     if ( ( args[0] & 0x200 ) != 0 && CUR.tt_metrics.rotated )
@@ -5108,7 +5463,7 @@
     if ( ( args[0] & 0x400 ) != 0 && CUR.tt_metrics.stretched )
       CUR.GS.scan_control = TRUE;
 
-    if ( ( args[0] & 0x800 ) != 0 && CUR.tt_metrics.ppem >= A )
+    if ( ( args[0] & 0x800 ) != 0 && CUR.tt_metrics.ppem > A )
       CUR.GS.scan_control = FALSE;
 
     if ( ( args[0] & 0x1000 ) != 0 && CUR.tt_metrics.rotated )
@@ -5158,8 +5513,9 @@
 
     if ( CUR.top < CUR.GS.loop )
     {
-      CUR.error = TT_Err_Too_Few_Arguments;
-      return;
+      if ( CUR.pedantic_hinting )
+        CUR.error = TT_Err_Too_Few_Arguments;
+      goto Fail;
     }
 
     while ( CUR.GS.loop > 0 )
@@ -5182,6 +5538,7 @@
       CUR.GS.loop--;
     }
 
+  Fail:
     CUR.GS.loop = 1;
     CUR.new_top = CUR.args;
   }
@@ -5369,8 +5726,9 @@
 
     if ( CUR.top < CUR.GS.loop )
     {
-      CUR.error = TT_Err_Invalid_Reference;
-      return;
+      if ( CUR.pedantic_hinting )
+        CUR.error = TT_Err_Invalid_Reference;
+      goto Fail;
     }
 
     if ( COMPUTE_Point_Displacement( &dx, &dy, &zp, &refp ) )
@@ -5390,12 +5748,12 @@
         }
       }
       else
-        /* XXX: UNDOCUMENTED! SHP touches the points */
         MOVE_Zp2_Point( point, dx, dy, TRUE );
 
       CUR.GS.loop--;
     }
 
+  Fail:
     CUR.GS.loop = 1;
     CUR.new_top = CUR.args;
   }
@@ -5407,21 +5765,25 @@
   /* Opcode range: 0x34-35                                                 */
   /* Stack:        uint32 -->                                              */
   /*                                                                       */
+  /* UNDOCUMENTED: According to Greg Hitchcock, there is one (virtual)     */
+  /*               contour in the twilight zone, namely contour number     */
+  /*               zero which includes all points of it.                   */
+  /*                                                                       */
   static void
   Ins_SHC( INS_ARG )
   {
-    TT_GlyphZoneRec zp;
-    FT_UShort       refp;
-    FT_F26Dot6      dx,
-                    dy;
+    TT_GlyphZoneRec  zp;
+    FT_UShort        refp;
+    FT_F26Dot6       dx, dy;
 
-    FT_Short        contour;
-    FT_UShort       first_point, last_point, i;
+    FT_Short         contour, bounds;
+    FT_UShort        start, limit, i;
 
 
     contour = (FT_UShort)args[0];
+    bounds  = ( CUR.GS.gep2 == 0 ) ? 1 : CUR.zp2.n_contours;
 
-    if ( BOUNDS( contour, CUR.pts.n_contours ) )
+    if ( BOUNDS( contour, bounds ) )
     {
       if ( CUR.pedantic_hinting )
         CUR.error = TT_Err_Invalid_Reference;
@@ -5432,26 +5794,19 @@
       return;
 
     if ( contour == 0 )
-      first_point = 0;
+      start = 0;
     else
-      first_point = (FT_UShort)( CUR.pts.contours[contour - 1] + 1 -
-                                 CUR.pts.first_point );
+      start = (FT_UShort)( CUR.zp2.contours[contour - 1] + 1 -
+                           CUR.zp2.first_point );
 
-    last_point = (FT_UShort)( CUR.pts.contours[contour] -
-                              CUR.pts.first_point );
+    /* we use the number of points if in the twilight zone */
+    if ( CUR.GS.gep2 == 0 )
+      limit = CUR.zp2.n_points;
+    else
+      limit = (FT_UShort)( CUR.zp2.contours[contour] -
+                           CUR.zp2.first_point + 1 );
 
-    /* XXX: this is probably wrong... at least it prevents memory */
-    /*      corruption when zp2 is the twilight zone              */
-    if ( BOUNDS( last_point, CUR.zp2.n_points ) )
-    {
-      if ( CUR.zp2.n_points > 0 )
-        last_point = (FT_UShort)(CUR.zp2.n_points - 1);
-      else
-        last_point = 0;
-    }
-
-    /* XXX: UNDOCUMENTED! SHC touches the points */
-    for ( i = first_point; i <= last_point; i++ )
+    for ( i = start; i < limit; i++ )
     {
       if ( zp.cur != CUR.zp2.cur || refp != i )
         MOVE_Zp2_Point( i, dx, dy, TRUE );
@@ -5468,12 +5823,12 @@
   static void
   Ins_SHZ( INS_ARG )
   {
-    TT_GlyphZoneRec zp;
-    FT_UShort       refp;
-    FT_F26Dot6      dx,
-                    dy;
+    TT_GlyphZoneRec  zp;
+    FT_UShort        refp;
+    FT_F26Dot6       dx,
+                     dy;
 
-    FT_UShort       last_point, i;
+    FT_UShort        limit, i;
 
 
     if ( BOUNDS( args[0], 2 ) )
@@ -5486,19 +5841,19 @@
     if ( COMPUTE_Point_Displacement( &dx, &dy, &zp, &refp ) )
       return;
 
-    /* XXX: UNDOCUMENTED! SHZ doesn't move the phantom points.  */
-    /*      Twilight zone has no contours, so use `n_points'.   */
-    /*      Normal zone's `n_points' includes phantoms, so must */
-    /*      use end of last contour.                            */
-    if ( CUR.GS.gep2 == 0 && CUR.zp2.n_points > 0 )
-      last_point = (FT_UShort)( CUR.zp2.n_points - 1 );
+    /* XXX: UNDOCUMENTED! SHZ doesn't move the phantom points.     */
+    /*      Twilight zone has no real contours, so use `n_points'. */
+    /*      Normal zone's `n_points' includes phantoms, so must    */
+    /*      use end of last contour.                               */
+    if ( CUR.GS.gep2 == 0 )
+      limit = (FT_UShort)CUR.zp2.n_points;
     else if ( CUR.GS.gep2 == 1 && CUR.zp2.n_contours > 0 )
-      last_point = (FT_UShort)( CUR.zp2.contours[CUR.zp2.n_contours - 1] );
+      limit = (FT_UShort)( CUR.zp2.contours[CUR.zp2.n_contours - 1] + 1 );
     else
-      last_point = 0;
+      limit = 0;
 
     /* XXX: UNDOCUMENTED! SHZ doesn't touch the points */
-    for ( i = 0; i <= last_point; i++ )
+    for ( i = 0; i < limit; i++ )
     {
       if ( zp.cur != CUR.zp2.cur || refp != i )
         MOVE_Zp2_Point( i, dx, dy, FALSE );
@@ -5521,8 +5876,9 @@
 
     if ( CUR.top < CUR.GS.loop + 1 )
     {
-      CUR.error = TT_Err_Invalid_Reference;
-      return;
+      if ( CUR.pedantic_hinting )
+        CUR.error = TT_Err_Invalid_Reference;
+      goto Fail;
     }
 
 #ifdef TT_CONFIG_OPTION_UNPATENTED_HINTING
@@ -5530,20 +5886,20 @@
     {
       if ( CUR.GS.both_x_axis )
       {
-        dx = TT_MulFix14( args[0], 0x4000 );
+        dx = TT_MulFix14( (FT_UInt32)args[0], 0x4000 );
         dy = 0;
       }
       else
       {
         dx = 0;
-        dy = TT_MulFix14( args[0], 0x4000 );
+        dy = TT_MulFix14( (FT_UInt32)args[0], 0x4000 );
       }
     }
     else
 #endif
     {
-      dx = TT_MulFix14( args[0], CUR.GS.freeVector.x );
-      dy = TT_MulFix14( args[0], CUR.GS.freeVector.y );
+      dx = TT_MulFix14( (FT_UInt32)args[0], CUR.GS.freeVector.x );
+      dy = TT_MulFix14( (FT_UInt32)args[0], CUR.GS.freeVector.y );
     }
 
     while ( CUR.GS.loop > 0 )
@@ -5566,6 +5922,7 @@
       CUR.GS.loop--;
     }
 
+  Fail:
     CUR.GS.loop = 1;
     CUR.new_top = CUR.args;
   }
@@ -5594,9 +5951,9 @@
       return;
     }
 
-    /* XXX: UNDOCUMENTED! behaviour */
-    if ( CUR.GS.gep1 == 0 )   /* if the point that is to be moved */
-                              /* is in twilight zone              */
+    /* UNDOCUMENTED!  The MS rasterizer does that with */
+    /* twilight points (confirmed by Greg Hitchcock)   */
+    if ( CUR.GS.gep1 == 0 )
     {
       CUR.zp1.org[point] = CUR.zp0.org[CUR.GS.rp0];
       CUR_Func_move_orig( &CUR.zp1, point, args[1] );
@@ -5639,8 +5996,6 @@
       return;
     }
 
-    /* XXX: Is there some undocumented feature while in the */
-    /*      twilight zone? ?                                */
     if ( ( CUR.opcode & 1 ) != 0 )
     {
       cur_dist = CUR_fast_project( &CUR.zp0.cur[point] );
@@ -5675,42 +6030,42 @@
     cvtEntry = (FT_ULong)args[1];
     point    = (FT_UShort)args[0];
 
-    if ( BOUNDS( point,    CUR.zp0.n_points ) ||
-         BOUNDS( cvtEntry, CUR.cvtSize )      )
+    if ( BOUNDS( point,     CUR.zp0.n_points ) ||
+         BOUNDSL( cvtEntry, CUR.cvtSize )      )
     {
       if ( CUR.pedantic_hinting )
         CUR.error = TT_Err_Invalid_Reference;
-      return;
+      goto Fail;
     }
 
-    /* XXX: UNDOCUMENTED!                                */
-    /*                                                   */
-    /* The behaviour of an MIAP instruction is quite     */
-    /* different when used in the twilight zone.         */
-    /*                                                   */
-    /* First, no control value cut-in test is performed  */
-    /* as it would fail anyway.  Second, the original    */
-    /* point, i.e. (org_x,org_y) of zp0.point, is set    */
-    /* to the absolute, unrounded distance found in      */
-    /* the CVT.                                          */
-    /*                                                   */
-    /* This is used in the CVT programs of the Microsoft */
-    /* fonts Arial, Times, etc., in order to re-adjust   */
-    /* some key font heights.  It allows the use of the  */
-    /* IP instruction in the twilight zone, which        */
-    /* otherwise would be `illegal' according to the     */
-    /* specification.                                    */
-    /*                                                   */
-    /* We implement it with a special sequence for the   */
-    /* twilight zone.  This is a bad hack, but it seems  */
-    /* to work.                                          */
+    /* UNDOCUMENTED!                                                      */
+    /*                                                                    */
+    /* The behaviour of an MIAP instruction is quite different when used  */
+    /* in the twilight zone.                                              */
+    /*                                                                    */
+    /* First, no control value cut-in test is performed as it would fail  */
+    /* anyway.  Second, the original point, i.e. (org_x,org_y) of         */
+    /* zp0.point, is set to the absolute, unrounded distance found in the */
+    /* CVT.                                                               */
+    /*                                                                    */
+    /* This is used in the CVT programs of the Microsoft fonts Arial,     */
+    /* Times, etc., in order to re-adjust some key font heights.  It      */
+    /* allows the use of the IP instruction in the twilight zone, which   */
+    /* otherwise would be invalid according to the specification.         */
+    /*                                                                    */
+    /* We implement it with a special sequence for the twilight zone.     */
+    /* This is a bad hack, but it seems to work.                          */
+    /*                                                                    */
+    /* Confirmed by Greg Hitchcock.                                       */
 
     distance = CUR_Func_read_cvt( cvtEntry );
 
     if ( CUR.GS.gep0 == 0 )   /* If in twilight zone */
     {
-      CUR.zp0.org[point].x = TT_MulFix14( distance, CUR.GS.freeVector.x );
-      CUR.zp0.org[point].y = TT_MulFix14( distance, CUR.GS.freeVector.y ),
+      CUR.zp0.org[point].x = TT_MulFix14( (FT_UInt32)distance,
+                                          CUR.GS.freeVector.x );
+      CUR.zp0.org[point].y = TT_MulFix14( (FT_UInt32)distance,
+                                          CUR.GS.freeVector.y ),
       CUR.zp0.cur[point]   = CUR.zp0.org[point];
     }
 
@@ -5726,6 +6081,7 @@
 
     CUR_Func_move( &CUR.zp0, point, distance - org_dist );
 
+  Fail:
     CUR.GS.rp0 = point;
     CUR.GS.rp1 = point;
   }
@@ -5751,7 +6107,7 @@
     {
       if ( CUR.pedantic_hinting )
         CUR.error = TT_Err_Invalid_Reference;
-      return;
+      goto Fail;
     }
 
     /* XXX: Is there some undocumented feature while in the */
@@ -5836,6 +6192,7 @@
 
     CUR_Func_move( &CUR.zp1, point, distance - org_dist );
 
+  Fail:
     CUR.GS.rp1 = CUR.GS.rp0;
     CUR.GS.rp2 = point;
 
@@ -5868,12 +6225,12 @@
     /* XXX: UNDOCUMENTED! cvt[-1] = 0 always */
 
     if ( BOUNDS( point,      CUR.zp1.n_points ) ||
-         BOUNDS( cvtEntry,   CUR.cvtSize + 1 )  ||
+         BOUNDSL( cvtEntry,  CUR.cvtSize + 1 )  ||
          BOUNDS( CUR.GS.rp0, CUR.zp0.n_points ) )
     {
       if ( CUR.pedantic_hinting )
         CUR.error = TT_Err_Invalid_Reference;
-      return;
+      goto Fail;
     }
 
     if ( !cvtEntry )
@@ -5892,17 +6249,17 @@
         cvt_dist = -CUR.GS.single_width_value;
     }
 
-    /* XXX: UNDOCUMENTED! -- twilight zone */
-
+    /* UNDOCUMENTED!  The MS rasterizer does that with */
+    /* twilight points (confirmed by Greg Hitchcock)   */
     if ( CUR.GS.gep1 == 0 )
     {
       CUR.zp1.org[point].x = CUR.zp0.org[CUR.GS.rp0].x +
-                             TT_MulFix14( cvt_dist, CUR.GS.freeVector.x );
-
+                             TT_MulFix14( (FT_UInt32)cvt_dist,
+                                          CUR.GS.freeVector.x );
       CUR.zp1.org[point].y = CUR.zp0.org[CUR.GS.rp0].y +
-                             TT_MulFix14( cvt_dist, CUR.GS.freeVector.y );
-
-      CUR.zp1.cur[point] = CUR.zp0.cur[point];
+                             TT_MulFix14( (FT_UInt32)cvt_dist,
+                                          CUR.GS.freeVector.y );
+      CUR.zp1.cur[point]   = CUR.zp1.org[point];
     }
 
     org_dist = CUR_Func_dualproj( &CUR.zp1.org[point],
@@ -5926,8 +6283,22 @@
       /*      refer to the same zone.                                  */
 
       if ( CUR.GS.gep0 == CUR.GS.gep1 )
-        if ( FT_ABS( cvt_dist - org_dist ) >= CUR.GS.control_value_cutin )
+      {
+        /* XXX: According to Greg Hitchcock, the following wording is */
+        /*      the right one:                                        */
+        /*                                                            */
+        /*        When the absolute difference between the value in   */
+        /*        the table [CVT] and the measurement directly from   */
+        /*        the outline is _greater_ than the cut_in value, the */
+        /*        outline measurement is used.                        */
+        /*                                                            */
+        /*      This is from `instgly.doc'.  The description in       */
+        /*      `ttinst2.doc', version 1.66, is thus incorrect since  */
+        /*      it implies `>=' instead of `>'.                       */
+
+        if ( FT_ABS( cvt_dist - org_dist ) > CUR.GS.control_value_cutin )
           cvt_dist = org_dist;
+      }
 
       distance = CUR_Func_round(
                    cvt_dist,
@@ -5956,12 +6327,12 @@
 
     CUR_Func_move( &CUR.zp1, point, distance - cur_dist );
 
+  Fail:
     CUR.GS.rp1 = CUR.GS.rp0;
 
     if ( ( CUR.opcode & 16 ) != 0 )
       CUR.GS.rp0 = point;
 
-    /* XXX: UNDOCUMENTED! */
     CUR.GS.rp2 = point;
   }
 
@@ -5986,7 +6357,7 @@
     {
       if ( CUR.pedantic_hinting )
         CUR.error = TT_Err_Invalid_Reference;
-      return;
+      goto Fail;
     }
 
     while ( CUR.GS.loop > 0 )
@@ -6014,6 +6385,7 @@
       CUR.GS.loop--;
     }
 
+  Fail:
     CUR.GS.loop = 1;
     CUR.new_top = CUR.args;
   }
@@ -6117,8 +6489,8 @@
     p1 = (FT_UShort)args[0];
     p2 = (FT_UShort)args[1];
 
-    if ( BOUNDS( args[0], CUR.zp1.n_points ) ||
-         BOUNDS( args[1], CUR.zp0.n_points ) )
+    if ( BOUNDS( p1, CUR.zp1.n_points ) ||
+         BOUNDS( p2, CUR.zp0.n_points ) )
     {
       if ( CUR.pedantic_hinting )
         CUR.error = TT_Err_Invalid_Reference;
@@ -6155,8 +6527,9 @@
 
     if ( CUR.top < CUR.GS.loop )
     {
-      CUR.error = TT_Err_Invalid_Reference;
-      return;
+      if ( CUR.pedantic_hinting )
+        CUR.error = TT_Err_Invalid_Reference;
+      goto Fail;
     }
 
     /*
@@ -6170,7 +6543,7 @@
     {
       if ( CUR.pedantic_hinting )
         CUR.error = TT_Err_Invalid_Reference;
-      return;
+      goto Fail;
     }
 
     if ( twilight )
@@ -6195,9 +6568,21 @@
       if ( twilight )
         old_range = CUR_Func_dualproj( &CUR.zp1.org[CUR.GS.rp2],
                                        orus_base );
-      else
+      else if ( CUR.metrics.x_scale == CUR.metrics.y_scale )
         old_range = CUR_Func_dualproj( &CUR.zp1.orus[CUR.GS.rp2],
                                        orus_base );
+      else
+      {
+        FT_Vector  vec;
+
+
+        vec.x = TT_MULFIX( CUR.zp1.orus[CUR.GS.rp2].x - orus_base->x,
+                           CUR.metrics.x_scale );
+        vec.y = TT_MULFIX( CUR.zp1.orus[CUR.GS.rp2].y - orus_base->y,
+                           CUR.metrics.y_scale );
+
+        old_range = CUR_fast_dualproj( &vec );
+      }
 
       cur_range = CUR_Func_project ( &CUR.zp1.cur[CUR.GS.rp2], cur_base );
     }
@@ -6221,8 +6606,20 @@
 
       if ( twilight )
         org_dist = CUR_Func_dualproj( &CUR.zp2.org[point], orus_base );
-      else
+      else if ( CUR.metrics.x_scale == CUR.metrics.y_scale )
         org_dist = CUR_Func_dualproj( &CUR.zp2.orus[point], orus_base );
+      else
+      {
+        FT_Vector  vec;
+
+
+        vec.x = TT_MULFIX( CUR.zp2.orus[point].x - orus_base->x,
+                           CUR.metrics.x_scale );
+        vec.y = TT_MULFIX( CUR.zp2.orus[point].y - orus_base->y,
+                           CUR.metrics.y_scale );
+
+        org_dist = CUR_fast_dualproj( &vec );
+      }
 
       cur_dist = CUR_Func_project ( &CUR.zp2.cur[point], cur_base );
 
@@ -6235,6 +6632,8 @@
 
       CUR_Func_move( &CUR.zp2, (FT_UShort)point, new_dist - cur_dist );
     }
+
+  Fail:
     CUR.GS.loop = 1;
     CUR.new_top = CUR.args;
   }
@@ -6452,8 +6851,8 @@
       end_point   = CUR.pts.contours[contour] - CUR.pts.first_point;
       first_point = point;
 
-      if ( CUR.pts.n_points <= end_point )
-        end_point = CUR.pts.n_points;
+      if ( BOUNDS ( end_point, CUR.pts.n_points ) )
+        end_point = CUR.pts.n_points - 1;
 
       while ( point <= end_point && ( CUR.pts.tags[point] & mask ) == 0 )
         point++;
@@ -6469,12 +6868,11 @@
         {
           if ( ( CUR.pts.tags[point] & mask ) != 0 )
           {
-            if ( point > 0 )
-              _iup_worker_interpolate( &V,
-                                       cur_touched + 1,
-                                       point - 1,
-                                       cur_touched,
-                                       point );
+            _iup_worker_interpolate( &V,
+                                     cur_touched + 1,
+                                     point - 1,
+                                     cur_touched,
+                                     point );
             cur_touched = point;
           }
 
@@ -6528,8 +6926,9 @@
 
       if ( CUR.args < n )
       {
-        CUR.error = TT_Err_Too_Few_Arguments;
-        return;
+        if ( CUR.pedantic_hinting )
+          CUR.error = TT_Err_Too_Few_Arguments;
+        n = CUR.args;
       }
 
       CUR.args -= n;
@@ -6545,8 +6944,10 @@
     {
       if ( CUR.args < 2 )
       {
-        CUR.error = TT_Err_Too_Few_Arguments;
-        return;
+        if ( CUR.pedantic_hinting )
+          CUR.error = TT_Err_Too_Few_Arguments;
+        CUR.args = 0;
+        goto Fail;
       }
 
       CUR.args -= 2;
@@ -6595,6 +6996,7 @@
           CUR.error = TT_Err_Invalid_Reference;
     }
 
+  Fail:
     CUR.new_top = CUR.args;
   }
 
@@ -6622,8 +7024,9 @@
 
       if ( CUR.args < n )
       {
-        CUR.error = TT_Err_Too_Few_Arguments;
-        return;
+        if ( CUR.pedantic_hinting )
+          CUR.error = TT_Err_Too_Few_Arguments;
+        n = CUR.args;
       }
 
       CUR.args -= n;
@@ -6638,8 +7041,10 @@
     {
       if ( CUR.args < 2 )
       {
-        CUR.error = TT_Err_Too_Few_Arguments;
-        return;
+        if ( CUR.pedantic_hinting )
+          CUR.error = TT_Err_Too_Few_Arguments;
+        CUR.args = 0;
+        goto Fail;
       }
 
       CUR.args -= 2;
@@ -6647,7 +7052,7 @@
       A = (FT_ULong)CUR.stack[CUR.args + 1];
       B = CUR.stack[CUR.args];
 
-      if ( BOUNDS( A, CUR.cvtSize ) )
+      if ( BOUNDSL( A, CUR.cvtSize ) )
       {
         if ( CUR.pedantic_hinting )
         {
@@ -6687,6 +7092,7 @@
       }
     }
 
+  Fail:
     CUR.new_top = CUR.args;
   }
 
@@ -6757,9 +7163,10 @@
         call = CUR.callStack + CUR.callTop++;
 
         call->Caller_Range = CUR.curRange;
-        call->Caller_IP    = CUR.IP+1;
+        call->Caller_IP    = CUR.IP + 1;
         call->Cur_Count    = 1;
         call->Cur_Restart  = def->start;
+        call->Cur_End      = def->end;
 
         INS_Goto_CodeRange( def->range, def->start );
 
@@ -7126,9 +7533,13 @@
     {
       CUR.opcode = CUR.code[CUR.IP];
 
+      FT_TRACE7(( "  " ));
+      FT_TRACE7(( opcode_name[CUR.opcode] ));
+      FT_TRACE7(( "\n" ));
+
       if ( ( CUR.length = opcode_length[CUR.opcode] ) < 0 )
       {
-        if ( CUR.IP + 1 > CUR.codeSize )
+        if ( CUR.IP + 1 >= CUR.codeSize )
           goto LErrorCodeOverflow_;
 
         CUR.length = 2 - CUR.length * CUR.code[CUR.IP + 1];
@@ -7144,8 +7555,19 @@
       /* One can also interpret it as the index of the last argument.    */
       if ( CUR.args < 0 )
       {
-        CUR.error = TT_Err_Too_Few_Arguments;
-        goto LErrorLabel_;
+        FT_UShort  i;
+
+
+        if ( CUR.pedantic_hinting )
+        {
+          CUR.error = TT_Err_Too_Few_Arguments;
+          goto LErrorLabel_;
+        }
+
+        /* push zeroes onto the stack */
+        for ( i = 0; i < Pop_Push_Count[CUR.opcode] >> 4; i++ )
+          CUR.stack[i] = 0;
+        CUR.args = 0;
       }
 
       CUR.new_top = CUR.args + ( Pop_Push_Count[CUR.opcode] & 15 );
@@ -7182,7 +7604,7 @@
         case 0x04:  /* SFvTCA y */
         case 0x05:  /* SFvTCA x */
           {
-            FT_Short AA, BB;
+            FT_Short  AA, BB;
 
 
             AA = (FT_Short)( ( opcode & 1 ) << 14 );
@@ -7753,6 +8175,7 @@
                 callrec->Caller_IP    = CUR.IP + 1;
                 callrec->Cur_Count    = 1;
                 callrec->Cur_Restart  = def->start;
+                callrec->Cur_End      = def->end;
 
                 if ( INS_Goto_CodeRange( def->range, def->start ) == FAILURE )
                   goto LErrorLabel_;
@@ -7819,6 +8242,15 @@
 #ifdef TT_CONFIG_OPTION_STATIC_RASTER
     *exc = cur;
 #endif
+
+    /* If any errors have occurred, function tables may be broken. */
+    /* Force a re-execution of `prep' and `fpgm' tables if no      */
+    /* bytecode debugger is run.                                   */
+    if ( CUR.error && !CUR.instruction_trap )
+    {
+      FT_TRACE1(( "  The interpreter returned error 0x%x\n", CUR.error ));
+      exc->size->cvt_ready      = FALSE;
+    }
 
     return CUR.error;
   }

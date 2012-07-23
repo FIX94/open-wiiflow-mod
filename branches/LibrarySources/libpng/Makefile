@@ -156,7 +156,7 @@ AUTOMAKE = ${SHELL} /c/libpng-1.2.29/missing --run automake-1.10
 AWK = gawk
 CC = powerpc-eabi-gcc
 CCDEPMODE = depmode=gcc3
-CFLAGS = -g -Os
+CFLAGS = -g -O2
 CPP = powerpc-eabi-gcc -E
 CPPFLAGS = -I/c/devkitPro/portlibs/ppc/include
 CYGPATH_W = echo

@@ -4,7 +4,7 @@
 /*                                                                         */
 /*    FreeType convenience functions to handle glyphs (body).              */
 /*                                                                         */
-/*  Copyright 1996-2001, 2002, 2003, 2004, 2005, 2007, 2008 by             */
+/*  Copyright 1996-2001, 2002, 2003, 2004, 2005, 2007, 2008, 2010 by       */
 /*  David Turner, Robert Wilhelm, and Werner Lemberg.                      */
 /*                                                                         */
 /*  This file is part of the FreeType project, and may only be used,       */
@@ -34,6 +34,7 @@
 #include FT_BITMAP_H
 #include FT_INTERNAL_OBJECTS_H
 
+#include "basepic.h"
 
   /*************************************************************************/
   /*                                                                       */
@@ -129,9 +130,7 @@
   }
 
 
-  FT_CALLBACK_TABLE_DEF
-  const FT_Glyph_Class  ft_bitmap_glyph_class =
-  {
+  FT_DEFINE_GLYPH(ft_bitmap_glyph_class,
     sizeof ( FT_BitmapGlyphRec ),
     FT_GLYPH_FORMAT_BITMAP,
 
@@ -141,7 +140,7 @@
     0,                          /* FT_Glyph_TransformFunc */
     ft_bitmap_glyph_bbox,
     0                           /* FT_Glyph_PrepareFunc   */
-  };
+  )
 
 
   /*************************************************************************/
@@ -255,9 +254,7 @@
   }
 
 
-  FT_CALLBACK_TABLE_DEF
-  const FT_Glyph_Class  ft_outline_glyph_class =
-  {
+  FT_DEFINE_GLYPH( ft_outline_glyph_class,
     sizeof ( FT_OutlineGlyphRec ),
     FT_GLYPH_FORMAT_OUTLINE,
 
@@ -267,7 +264,7 @@
     ft_outline_glyph_transform,
     ft_outline_glyph_bbox,
     ft_outline_glyph_prepare
-  };
+  )
 
 
   /*************************************************************************/
@@ -285,7 +282,7 @@
    {
      FT_Memory  memory = library->memory;
      FT_Error   error;
-     FT_Glyph   glyph;
+     FT_Glyph   glyph  = NULL;
 
 
      *aglyph = 0;
@@ -373,11 +370,11 @@
 
     /* if it is a bitmap, that's easy :-) */
     if ( slot->format == FT_GLYPH_FORMAT_BITMAP )
-      clazz = &ft_bitmap_glyph_class;
+      clazz = FT_BITMAP_GLYPH_CLASS_GET;
 
-    /* it it is an outline too */
+    /* if it is an outline */
     else if ( slot->format == FT_GLYPH_FORMAT_OUTLINE )
-      clazz = &ft_outline_glyph_class;
+      clazz = FT_OUTLINE_GLYPH_CLASS_GET;
 
     else
     {
@@ -515,38 +512,42 @@
     FT_Error                  error = FT_Err_Ok;
     FT_Glyph                  glyph;
     FT_BitmapGlyph            bitmap = NULL;
-
     const FT_Glyph_Class*     clazz;
+
+    /* FT_BITMAP_GLYPH_CLASS_GET derefers `library' in PIC mode */
+    FT_Library                library;
 
 
     /* check argument */
     if ( !the_glyph )
       goto Bad;
-
-    /* we render the glyph into a glyph bitmap using a `dummy' glyph slot */
-    /* then calling FT_Render_Glyph_Internal()                            */
-
     glyph = *the_glyph;
     if ( !glyph )
       goto Bad;
 
-    clazz = glyph->clazz;
+    clazz   = glyph->clazz;
+    library = glyph->library;
+    if ( !library || !clazz )
+      goto Bad;
 
     /* when called with a bitmap glyph, do nothing and return successfully */
-    if ( clazz == &ft_bitmap_glyph_class )
+    if ( clazz == FT_BITMAP_GLYPH_CLASS_GET )
       goto Exit;
 
-    if ( !clazz || !clazz->glyph_prepare )
+    if ( !clazz->glyph_prepare )
       goto Bad;
+
+    /* we render the glyph into a glyph bitmap using a `dummy' glyph slot */
+    /* then calling FT_Render_Glyph_Internal()                            */
 
     FT_MEM_ZERO( &dummy, sizeof ( dummy ) );
     FT_MEM_ZERO( &dummy_internal, sizeof ( dummy_internal ) );
     dummy.internal = &dummy_internal;
-    dummy.library  = glyph->library;
+    dummy.library  = library;
     dummy.format   = clazz->glyph_format;
 
     /* create result bitmap glyph */
-    error = ft_new_glyph( glyph->library, &ft_bitmap_glyph_class,
+    error = ft_new_glyph( library, FT_BITMAP_GLYPH_CLASS_GET,
                           (FT_Glyph*)(void*)&bitmap );
     if ( error )
       goto Exit;

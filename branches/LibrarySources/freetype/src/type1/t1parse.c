@@ -4,7 +4,7 @@
 /*                                                                         */
 /*    Type 1 parser (body).                                                */
 /*                                                                         */
-/*  Copyright 1996-2001, 2002, 2003, 2004, 2005, 2008 by                   */
+/*  Copyright 1996-2005, 2008, 2009, 2012 by                               */
 /*  David Turner, Robert Wilhelm, and Werner Lemberg.                      */
 /*                                                                         */
 /*  This file is part of the FreeType project, and may only be used,       */
@@ -35,7 +35,6 @@
 
 #include <ft2build.h>
 #include FT_INTERNAL_DEBUG_H
-#include FT_INTERNAL_CALC_H
 #include FT_INTERNAL_STREAM_H
 #include FT_INTERNAL_POSTSCRIPT_AUX_H
 
@@ -165,7 +164,7 @@
       error = check_type1_format( stream, "%!FontType", 10 );
       if ( error )
       {
-        FT_TRACE2(( "[not a Type1 font]\n" ));
+        FT_TRACE2(( "  not a Type 1 font\n" ));
         goto Exit;
       }
     }
@@ -298,8 +297,8 @@
       /* and allocate private dictionary buffer        */
       if ( parser->private_len == 0 )
       {
-        FT_ERROR(( "T1_Get_Private_Dict:" ));
-        FT_ERROR(( " invalid private dictionary section\n" ));
+        FT_ERROR(( "T1_Get_Private_Dict:"
+                   " invalid private dictionary section\n" ));
         error = T1_Err_Invalid_File_Format;
         goto Fail;
       }
@@ -354,8 +353,8 @@
         cur++;
         if ( cur >= limit )
         {
-          FT_ERROR(( "T1_Get_Private_Dict:" ));
-          FT_ERROR(( " could not find `eexec' keyword\n" ));
+          FT_ERROR(( "T1_Get_Private_Dict:"
+                     " could not find `eexec' keyword\n" ));
           error = T1_Err_Invalid_File_Format;
           goto Exit;
         }
@@ -398,18 +397,21 @@
 
       T1_Skip_PS_Token( parser );
       cur = parser->root.cursor;
-      if ( *cur == '\r' )
+
+      /* according to the Type1 spec, the first cipher byte must not be  */
+      /* an ASCII whitespace character code (blank, tab, carriage return */
+      /* or line feed).  We have seen Type 1 fonts with two line feed    */
+      /* characters...  So skip now all whitespace character codes.      */
+      while ( cur < limit       &&
+              ( *cur == ' '  ||
+                *cur == '\t' ||
+                *cur == '\r' ||
+                *cur == '\n' ) )
+        ++cur;
+      if ( cur >= limit )
       {
-        cur++;
-        if ( *cur == '\n' )
-          cur++;
-      }
-      else if ( *cur == '\n' )
-        cur++;
-      else
-      {
-        FT_ERROR(( "T1_Get_Private_Dict:" ));
-        FT_ERROR(( " `eexec' not properly terminated\n" ));
+        FT_ERROR(( "T1_Get_Private_Dict:"
+                   " `eexec' not properly terminated\n" ));
         error = T1_Err_Invalid_File_Format;
         goto Exit;
       }
@@ -464,6 +466,14 @@
 
     /* we now decrypt the encoded binary private dictionary */
     psaux->t1_decrypt( parser->private_dict, parser->private_len, 55665U );
+
+    if ( parser->private_len < 4 )
+    {
+      FT_ERROR(( "T1_Get_Private_Dict:"
+                 " invalid private dictionary section\n" ));
+      error = T1_Err_Invalid_File_Format;
+      goto Fail;
+    }
 
     /* replace the four random bytes at the beginning with whitespace */
     parser->private_dict[0] = ' ';

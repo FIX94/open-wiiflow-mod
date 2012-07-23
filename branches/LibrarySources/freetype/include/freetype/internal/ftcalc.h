@@ -4,7 +4,7 @@
 /*                                                                         */
 /*    Arithmetic computations (specification).                             */
 /*                                                                         */
-/*  Copyright 1996-2001, 2002, 2003, 2004, 2005, 2006, 2008 by             */
+/*  Copyright 1996-2006, 2008, 2009, 2012 by                               */
 /*  David Turner, Robert Wilhelm, and Werner Lemberg.                      */
 /*                                                                         */
 /*  This file is part of the FreeType project, and may only be used,       */
@@ -87,7 +87,7 @@ FT_BEGIN_HEADER
   /*                                                                       */
   /* <Description>                                                         */
   /*    A very simple function used to perform the computation `(a*b)/c'   */
-  /*    (without rounding) with maximal accuracy (it uses a 64-bit         */
+  /*    (without rounding) with maximum accuracy (it uses a 64-bit         */
   /*    intermediate integer whenever necessary).                          */
   /*                                                                       */
   /*    This function isn't necessarily as fast as some processor specific */
@@ -165,6 +165,7 @@ FT_BEGIN_HEADER
 #define INT_TO_FIXED( x )      ( (FT_Long)(x) << 16 )
 #define F2DOT14_TO_FIXED( x )  ( (FT_Long)(x) << 2  )
 #define FLOAT_TO_FIXED( x )    ( (FT_Long)( x * 65536.0 ) )
+#define FIXED_TO_INT( x )      ( FT_RoundFix( x ) >> 16 )
 
 #define ROUND_F26DOT6( x )     ( x >= 0 ? (    ( (x) + 32 ) & -64 )     \
                                         : ( -( ( 32 - (x) ) & -64 ) ) )

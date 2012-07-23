@@ -47,7 +47,7 @@ DISTCLEAN += $(OBJ_BUILD)/config.cache    \
 
 # Standard installation variables.
 #
-prefix       := /usr/local
+prefix       := C:/devkitpro/portlibs/ppc
 exec_prefix  := ${prefix}
 libdir       := ${exec_prefix}/lib
 bindir       := ${exec_prefix}/bin
@@ -55,7 +55,7 @@ includedir   := ${prefix}/include
 datarootdir  := ${prefix}/share
 datadir      := ${datarootdir}
 
-version_info := 9:19:3
+version_info := 15:0:9
 
 
 # The directory where all library files are placed.
@@ -73,7 +73,7 @@ ftmac_c :=
 # The SYSTEM_ZLIB macro is defined if the user wishes to link dynamically
 # with its system wide zlib. If SYSTEM_ZLIB is 'yes', the zlib part of the
 # ftgzip module is not compiled in.
-SYSTEM_ZLIB := 
+SYSTEM_ZLIB := yes
 
 
 # The NO_OUTPUT macro is appended to command lines in order to ignore

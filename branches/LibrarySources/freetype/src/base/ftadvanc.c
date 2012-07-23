@@ -4,7 +4,7 @@
 /*                                                                         */
 /*    Quick computation of advance widths (body).                          */
 /*                                                                         */
-/*  Copyright 2008 by                                                      */
+/*  Copyright 2008, 2009, 2011 by                                          */
 /*  David Turner, Robert Wilhelm, and Werner Lemberg.                      */
 /*                                                                         */
 /*  This file is part of the FreeType project, and may only be used,       */
@@ -42,8 +42,8 @@
     else
       scale = face->size->metrics.x_scale;
 
-    /* this must be the same computation as to get linearHori/VertAdvance */
-    /* (see `FT_Load_Glyph' implementation in src/base/ftobjs.c           */
+    /* this must be the same scaling as to get linear{Hori,Vert}Advance */
+    /* (see `FT_Load_Glyph' implementation in src/base/ftobjs.c)        */
 
     for ( nn = 0; nn < count; nn++ )
       advances[nn] = FT_MulDiv( advances[nn], scale, 64 );
@@ -129,7 +129,7 @@
     {
       error = func( face, start, count, flags, padvances );
       if ( !error )
-        goto Exit;
+        return _ft_face_scale_advances( face, padvances, count, flags );
 
       if ( error != FT_ERROR_BASE( FT_Err_Unimplemented_Feature ) )
         return error;
@@ -140,23 +140,20 @@
     if ( flags & FT_ADVANCE_FLAG_FAST_ONLY )
       return FT_Err_Unimplemented_Feature;
 
-    flags |= FT_LOAD_ADVANCE_ONLY;
+    flags |= (FT_UInt32)FT_LOAD_ADVANCE_ONLY;
     for ( nn = 0; nn < count; nn++ )
     {
       error = FT_Load_Glyph( face, start + nn, flags );
       if ( error )
         break;
 
+      /* scale from 26.6 to 16.16 */
       padvances[nn] = ( flags & FT_LOAD_VERTICAL_LAYOUT )
-                      ? face->glyph->advance.x
-                      : face->glyph->advance.y;
+                      ? face->glyph->advance.y << 10
+                      : face->glyph->advance.x << 10;
     }
 
-    if ( error )
-      return error;
-
-  Exit:
-    return _ft_face_scale_advances( face, padvances, count, flags );
+    return error;
   }
 
 

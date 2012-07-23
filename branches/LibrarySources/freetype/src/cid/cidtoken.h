@@ -4,7 +4,7 @@
 /*                                                                         */
 /*    CID token definitions (specification only).                          */
 /*                                                                         */
-/*  Copyright 1996-2001, 2002, 2003, 2006, 2008 by                         */
+/*  Copyright 1996-2001, 2002, 2003, 2006, 2008, 2009 by                   */
 /*  David Turner, Robert Wilhelm, and Werner Lemberg.                      */
 /*                                                                         */
 /*  This file is part of the FreeType project, and may only be used,       */
@@ -22,7 +22,7 @@
 #define T1CODE        T1_FIELD_LOCATION_CID_INFO
 
   T1_FIELD_KEY   ( "CIDFontName",    cid_font_name, 0 )
-  T1_FIELD_NUM   ( "CIDFontVersion", cid_version,   0 )
+  T1_FIELD_FIXED ( "CIDFontVersion", cid_version,   0 )
   T1_FIELD_NUM   ( "CIDFontType",    cid_font_type, 0 )
   T1_FIELD_STRING( "Registry",       registry,      0 )
   T1_FIELD_STRING( "Ordering",       ordering,      0 )
@@ -48,6 +48,12 @@
   T1_FIELD_BOOL  ( "isFixedPitch",       is_fixed_pitch,      0 )
   T1_FIELD_NUM   ( "UnderlinePosition",  underline_position,  0 )
   T1_FIELD_NUM   ( "UnderlineThickness", underline_thickness, 0 )
+
+#undef  FT_STRUCTURE
+#define FT_STRUCTURE  PS_FontExtraRec
+#undef  T1CODE
+#define T1CODE        T1_FIELD_LOCATION_FONT_EXTRA
+
   T1_FIELD_NUM   ( "FSType",             fs_type,             0 )
 
 
