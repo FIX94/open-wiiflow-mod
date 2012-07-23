@@ -4,7 +4,7 @@
 /*                                                                         */
 /*    The FreeType glyph rasterizer interface (body).                      */
 /*                                                                         */
-/*  Copyright 1996-2001, 2002, 2003, 2005, 2006 by                         */
+/*  Copyright 1996-2003, 2005, 2006, 2011 by                               */
 /*  David Turner, Robert Wilhelm, and Werner Lemberg.                      */
 /*                                                                         */
 /*  This file is part of the FreeType project, and may only be used,       */
@@ -21,6 +21,7 @@
 #include FT_OUTLINE_H
 #include "ftrend1.h"
 #include "ftraster.h"
+#include "rastpic.h"
 
 #include "rasterrs.h"
 
@@ -118,6 +119,7 @@
     }
 
     /* check rendering mode */
+#ifndef FT_CONFIG_OPTION_PIC
     if ( mode != FT_RENDER_MODE_MONO )
     {
       /* raster1 is only capable of producing monochrome bitmaps */
@@ -130,6 +132,25 @@
       if ( render->clazz == &ft_raster5_renderer_class )
         return Raster_Err_Cannot_Render_Glyph;
     }
+#else /* FT_CONFIG_OPTION_PIC */
+    /* When PIC is enabled, we cannot get to the class object      */
+    /* so instead we check the final character in the class name   */
+    /* ("raster5" or "raster1"). Yes this is a hack.               */
+    /* The "correct" thing to do is have different render function */
+    /* for each of the classes.                                    */
+    if ( mode != FT_RENDER_MODE_MONO )
+    {
+      /* raster1 is only capable of producing monochrome bitmaps */
+      if ( render->clazz->root.module_name[6] == '1' )
+        return Raster_Err_Cannot_Render_Glyph;
+    }
+    else
+    {
+      /* raster5 is only capable of producing 5-gray-levels bitmaps */
+      if ( render->clazz->root.module_name[6] == '5' )
+        return Raster_Err_Cannot_Render_Glyph;
+    }
+#endif /* FT_CONFIG_OPTION_PIC */
 
     outline = &slot->outline;
 
@@ -140,13 +161,28 @@
     /* compute the control box, and grid fit it */
     FT_Outline_Get_CBox( outline, &cbox );
 
+    /* undocumented but confirmed: bbox values get rounded */
+#if 1
+    cbox.xMin = FT_PIX_ROUND( cbox.xMin );
+    cbox.yMin = FT_PIX_ROUND( cbox.yMin );
+    cbox.xMax = FT_PIX_ROUND( cbox.xMax );
+    cbox.yMax = FT_PIX_ROUND( cbox.yMax );
+#else
     cbox.xMin = FT_PIX_FLOOR( cbox.xMin );
     cbox.yMin = FT_PIX_FLOOR( cbox.yMin );
     cbox.xMax = FT_PIX_CEIL( cbox.xMax );
     cbox.yMax = FT_PIX_CEIL( cbox.yMax );
+#endif
 
     width  = (FT_UInt)( ( cbox.xMax - cbox.xMin ) >> 6 );
     height = (FT_UInt)( ( cbox.yMax - cbox.yMin ) >> 6 );
+
+    if ( width > FT_USHORT_MAX || height > FT_USHORT_MAX )
+    {
+      error = Raster_Err_Invalid_Argument;
+      goto Exit;
+    }
+
     bitmap = &slot->bitmap;
     memory = render->root.memory;
 
@@ -208,12 +244,10 @@
   }
 
 
-  FT_CALLBACK_TABLE_DEF
-  const FT_Renderer_Class  ft_raster1_renderer_class =
-  {
-    {
+  FT_DEFINE_RENDERER( ft_raster1_renderer_class,
+
       FT_MODULE_RENDERER,
-      sizeof( FT_RendererRec ),
+      sizeof ( FT_RendererRec ),
 
       "raster1",
       0x10000L,
@@ -224,7 +258,7 @@
       (FT_Module_Constructor)ft_raster1_init,
       (FT_Module_Destructor) 0,
       (FT_Module_Requester)  0
-    },
+    ,
 
     FT_GLYPH_FORMAT_OUTLINE,
 
@@ -233,20 +267,18 @@
     (FT_Renderer_GetCBoxFunc)  ft_raster1_get_cbox,
     (FT_Renderer_SetModeFunc)  ft_raster1_set_mode,
 
-    (FT_Raster_Funcs*)    &ft_standard_raster
-  };
+    (FT_Raster_Funcs*)    &FT_STANDARD_RASTER_GET
+  )
 
 
   /* This renderer is _NOT_ part of the default modules; you will need */
   /* to register it by hand in your application.  It should only be    */
   /* used for backwards-compatibility with FT 1.x anyway.              */
   /*                                                                   */
-  FT_CALLBACK_TABLE_DEF
-  const FT_Renderer_Class  ft_raster5_renderer_class =
-  {
-    {
+  FT_DEFINE_RENDERER( ft_raster5_renderer_class,
+
       FT_MODULE_RENDERER,
-      sizeof( FT_RendererRec ),
+      sizeof ( FT_RendererRec ),
 
       "raster5",
       0x10000L,
@@ -257,7 +289,7 @@
       (FT_Module_Constructor)ft_raster1_init,
       (FT_Module_Destructor) 0,
       (FT_Module_Requester)  0
-    },
+    ,
 
     FT_GLYPH_FORMAT_OUTLINE,
 
@@ -266,8 +298,8 @@
     (FT_Renderer_GetCBoxFunc)  ft_raster1_get_cbox,
     (FT_Renderer_SetModeFunc)  ft_raster1_set_mode,
 
-    (FT_Raster_Funcs*)    &ft_standard_raster
-  };
+    (FT_Raster_Funcs*)    &FT_STANDARD_RASTER_GET
+  )
 
 
 /* END */

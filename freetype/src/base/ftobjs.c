@@ -4,7 +4,7 @@
 /*                                                                         */
 /*    The FreeType private base classes (body).                            */
 /*                                                                         */
-/*  Copyright 1996-2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009 by */
+/*  Copyright 1996-2012 by                                                 */
 /*  David Turner, Robert Wilhelm, and Werner Lemberg.                      */
 /*                                                                         */
 /*  This file is part of the FreeType project, and may only be used,       */
@@ -28,7 +28,6 @@
 #include FT_TRUETYPE_TABLES_H
 #include FT_TRUETYPE_TAGS_H
 #include FT_TRUETYPE_IDS_H
-#include FT_OUTLINE_H
 
 #include FT_SERVICE_SFNT_H
 #include FT_SERVICE_POSTSCRIPT_NAME_H
@@ -37,7 +36,9 @@
 #include FT_SERVICE_KERNING_H
 #include FT_SERVICE_TRUETYPE_ENGINE_H
 
+#ifdef FT_CONFIG_OPTION_MAC_FONTS
 #include "ftbase.h"
+#endif
 
 #define GRID_FIT_METRICS
 
@@ -129,7 +130,7 @@
   {
     FT_Error   error;
     FT_Memory  memory;
-    FT_Stream  stream;
+    FT_Stream  stream = NULL;
 
 
     *astream = 0;
@@ -140,7 +141,7 @@
     if ( !args )
       return FT_Err_Invalid_Argument;
 
-    memory   = library->memory;
+    memory = library->memory;
 
     if ( FT_NEW( stream ) )
       goto Exit;
@@ -154,6 +155,9 @@
                             (const FT_Byte*)args->memory_base,
                             args->memory_size );
     }
+
+#ifndef FT_CONFIG_OPTION_DISABLE_STREAM_SUPPORT
+
     else if ( args->flags & FT_OPEN_PATHNAME )
     {
       /* create a normal system stream */
@@ -169,6 +173,9 @@
       FT_FREE( stream );
       stream = args->stream;
     }
+
+#endif
+
     else
       error = FT_Err_Invalid_Argument;
 
@@ -227,11 +234,11 @@
   static FT_Error
   ft_glyphslot_init( FT_GlyphSlot  slot )
   {
-    FT_Driver         driver = slot->face->driver;
-    FT_Driver_Class   clazz  = driver->clazz;
-    FT_Memory         memory = driver->root.memory;
-    FT_Error          error  = FT_Err_Ok;
-    FT_Slot_Internal  internal;
+    FT_Driver         driver   = slot->face->driver;
+    FT_Driver_Class   clazz    = driver->clazz;
+    FT_Memory         memory   = driver->root.memory;
+    FT_Error          error    = FT_Err_Ok;
+    FT_Slot_Internal  internal = NULL;
 
 
     slot->library = driver->root.library;
@@ -348,14 +355,18 @@
     /* free bitmap buffer if needed */
     ft_glyphslot_free_bitmap( slot );
 
-    /* free glyph loader */
-    if ( FT_DRIVER_USES_OUTLINES( driver ) )
+    /* slot->internal might be NULL in out-of-memory situations */
+    if ( slot->internal )
     {
-      FT_GlyphLoader_Done( slot->internal->loader );
-      slot->internal->loader = 0;
-    }
+      /* free glyph loader */
+      if ( FT_DRIVER_USES_OUTLINES( driver ) )
+      {
+        FT_GlyphLoader_Done( slot->internal->loader );
+        slot->internal->loader = 0;
+      }
 
-    FT_FREE( slot->internal );
+      FT_FREE( slot->internal );
+    }
   }
 
 
@@ -369,7 +380,7 @@
     FT_Driver        driver;
     FT_Driver_Class  clazz;
     FT_Memory        memory;
-    FT_GlyphSlot     slot;
+    FT_GlyphSlot     slot = NULL;
 
 
     if ( !face || !face->driver )
@@ -433,6 +444,10 @@
             slot->face->glyph = cur->next;
           else
             prev->next = cur->next;
+
+          /* finalize client-specific data */
+          if ( slot->generic.finalizer )
+            slot->generic.finalizer( slot );
 
           ft_glyphslot_done( slot );
           FT_FREE( slot );
@@ -555,6 +570,7 @@
     FT_Library    library;
     FT_Bool       autohint = FALSE;
     FT_Module     hinter;
+    TT_Face       ttface = (TT_Face)face;
 
 
     if ( !face || !face->size || !face->glyph )
@@ -588,27 +604,31 @@
      * Determine whether we need to auto-hint or not.
      * The general rules are:
      *
-     * - Do only auto-hinting if we have a hinter module,
-     *   a scalable font format dealing with outlines,
-     *   and no transforms except simple slants.
+     * - Do only auto-hinting if we have a hinter module, a scalable font
+     *   format dealing with outlines, and no transforms except simple
+     *   slants and/or rotations by integer multiples of 90 degrees.
      *
-     * - Then, autohint if FT_LOAD_FORCE_AUTOHINT is set
-     *   or if we don't have a native font hinter.
+     * - Then, auto-hint if FT_LOAD_FORCE_AUTOHINT is set or if we don't
+     *   have a native font hinter.
      *
-     * - Otherwise, auto-hint for LIGHT hinting mode.
+     * - Otherwise, auto-hint for LIGHT hinting mode or if there isn't
+     *   any hinting bytecode in the TrueType/OpenType font.
      *
-     * - Exception: The font is `tricky' and requires
-     *   the native hinter to load properly.
+     * - Exception: The font is `tricky' and requires the native hinter to
+     *   load properly.
      */
 
-    if ( hinter                                   &&
-         !( load_flags & FT_LOAD_NO_HINTING )     &&
-         !( load_flags & FT_LOAD_NO_AUTOHINT )    &&
-         FT_DRIVER_IS_SCALABLE( driver )          &&
-         FT_DRIVER_USES_OUTLINES( driver )        &&
-         !FT_IS_TRICKY( face )                    &&
-         face->internal->transform_matrix.yy > 0  &&
-         face->internal->transform_matrix.yx == 0 )
+    if ( hinter                                           &&
+         !( load_flags & FT_LOAD_NO_HINTING )             &&
+         !( load_flags & FT_LOAD_NO_AUTOHINT )            &&
+         FT_DRIVER_IS_SCALABLE( driver )                  &&
+         FT_DRIVER_USES_OUTLINES( driver )                &&
+         !FT_IS_TRICKY( face )                            &&
+         ( ( load_flags & FT_LOAD_IGNORE_TRANSFORM )    ||
+           ( face->internal->transform_matrix.yx == 0 &&
+             face->internal->transform_matrix.xx != 0 ) ||
+           ( face->internal->transform_matrix.xx == 0 &&
+             face->internal->transform_matrix.yx != 0 ) ) )
     {
       if ( ( load_flags & FT_LOAD_FORCE_AUTOHINT ) ||
            !FT_DRIVER_HAS_HINTER( driver )         )
@@ -618,8 +638,13 @@
         FT_Render_Mode  mode = FT_LOAD_TARGET_MODE( load_flags );
 
 
-        if ( mode == FT_RENDER_MODE_LIGHT             ||
-             face->internal->ignore_unpatented_hinter )
+        /* the check for `num_locations' assures that we actually    */
+        /* test for instructions in a TTF and not in a CFF-based OTF */
+        if ( mode == FT_RENDER_MODE_LIGHT                       ||
+             face->internal->ignore_unpatented_hinter           ||
+             ( FT_IS_SFNT( face )                             &&
+               ttface->num_locations                          &&
+               ttface->max_profile.maxSizeOfInstructions == 0 ) )
           autohint = TRUE;
       }
     }
@@ -702,8 +727,8 @@
     }
 
     /* compute the linear advance in 16.16 pixels */
-    if ( ( load_flags & FT_LOAD_LINEAR_DESIGN ) == 0  &&
-         ( FT_IS_SCALABLE( face ) )                   )
+    if ( ( load_flags & FT_LOAD_LINEAR_DESIGN ) == 0 &&
+         ( FT_IS_SCALABLE( face ) )                  )
     {
       FT_Size_Metrics*  metrics = &face->size->metrics;
 
@@ -733,10 +758,29 @@
                                      renderer, slot,
                                      &internal->transform_matrix,
                                      &internal->transform_delta );
+        else if ( slot->format == FT_GLYPH_FORMAT_OUTLINE )
+        {
+          /* apply `standard' transformation if no renderer is available */
+          if ( internal->transform_flags & 1 )
+            FT_Outline_Transform( &slot->outline,
+                                  &internal->transform_matrix );
+
+          if ( internal->transform_flags & 2 )
+            FT_Outline_Translate( &slot->outline,
+                                  internal->transform_delta.x,
+                                  internal->transform_delta.y );
+        }
+
         /* transform advance */
         FT_Vector_Transform( &slot->advance, &internal->transform_matrix );
       }
     }
+
+    FT_TRACE5(( "  x advance: %d\n" , slot->advance.x ));
+    FT_TRACE5(( "  y advance: %d\n" , slot->advance.y ));
+
+    FT_TRACE5(( "  linear x advance: %d\n" , slot->linearHoriAdvance ));
+    FT_TRACE5(( "  linear y advance: %d\n" , slot->linearVertAdvance ));
 
     /* do we need to render the image now? */
     if ( !error                                    &&
@@ -964,6 +1008,14 @@
              ( cur[0]->platform_id == TT_PLATFORM_APPLE_UNICODE &&
                cur[0]->encoding_id == TT_APPLE_ID_UNICODE_32    ) )
         {
+#ifdef FT_MAX_CHARMAP_CACHEABLE
+          if ( cur - first > FT_MAX_CHARMAP_CACHEABLE )
+          {
+            FT_ERROR(( "find_unicode_charmap: UCS-4 cmap is found "
+                       "at too late position (%d)\n", cur - first ));
+            continue;
+          }
+#endif
           face->charmap = cur[0];
           return FT_Err_Ok;
         }
@@ -978,6 +1030,14 @@
     {
       if ( cur[0]->encoding == FT_ENCODING_UNICODE )
       {
+#ifdef FT_MAX_CHARMAP_CACHEABLE
+        if ( cur - first > FT_MAX_CHARMAP_CACHEABLE )
+        {
+          FT_ERROR(( "find_unicode_charmap: UCS-2 cmap is found "
+                     "at too late position (%d)\n", cur - first ));
+          continue;
+        }
+#endif
         face->charmap = cur[0];
         return FT_Err_Ok;
       }
@@ -1019,7 +1079,17 @@
       if ( cur[0]->platform_id == TT_PLATFORM_APPLE_UNICODE    &&
            cur[0]->encoding_id == TT_APPLE_ID_VARIANT_SELECTOR &&
            FT_Get_CMap_Format( cur[0] ) == 14                  )
+      {
+#ifdef FT_MAX_CHARMAP_CACHEABLE
+        if ( cur - first > FT_MAX_CHARMAP_CACHEABLE )
+        {
+          FT_ERROR(( "find_unicode_charmap: UVS cmap is found "
+                     "at too late position (%d)\n", cur - first ));
+          continue;
+        }
+#endif
         return cur[0];
+      }
     }
 
     return NULL;
@@ -1121,7 +1191,7 @@
   /* there's a Mac-specific extended implementation of FT_New_Face() */
   /* in src/base/ftmac.c                                             */
 
-#if !defined( FT_MACINTOSH ) || defined( DARWIN_NO_CARBON )
+#ifndef FT_MACINTOSH
 
   /* documentation is in freetype.h */
 
@@ -1140,11 +1210,12 @@
 
     args.flags    = FT_OPEN_PATHNAME;
     args.pathname = (char*)pathname;
+    args.stream   = NULL;
 
     return FT_Open_Face( library, &args, face_index, aface );
   }
 
-#endif  /* defined( FT_MACINTOSH ) && !defined( DARWIN_NO_CARBON ) */
+#endif
 
 
   /* documentation is in freetype.h */
@@ -1166,6 +1237,7 @@
     args.flags       = FT_OPEN_MEMORY;
     args.memory_base = file_base;
     args.memory_size = file_size;
+    args.stream      = NULL;
 
     return FT_Open_Face( library, &args, face_index, aface );
   }
@@ -1228,7 +1300,7 @@
   {
     FT_Error   error;
     FT_Memory  memory;
-    FT_Stream  stream;
+    FT_Stream  stream = NULL;
 
 
     if ( !library )
@@ -1403,7 +1475,7 @@
     FT_ULong   offset, length;
     FT_Long    pos;
     FT_Bool    is_sfnt_cid;
-    FT_Byte*   sfnt_ps;
+    FT_Byte*   sfnt_ps = NULL;
 
     FT_UNUSED( num_params );
     FT_UNUSED( params );
@@ -1417,7 +1489,7 @@
                                          &length,
                                          &is_sfnt_cid );
     if ( error )
-      return error;
+      goto Exit;
 
     if ( FT_Stream_Seek( stream, pos + offset ) )
       goto Exit;
@@ -1436,12 +1508,23 @@
                                    is_sfnt_cid ? "cid" : "type1",
                                    aface );
   Exit:
-    FT_Stream_Seek( stream, pos );
-    return error;
+    {
+      FT_Error  error1;
+
+
+      if ( error == FT_Err_Unknown_File_Format )
+      {
+        error1 = FT_Stream_Seek( stream, pos );
+        if ( error1 )
+          return error1;
+      }
+
+      return error;
+    }
   }
 
 
-#if !defined( FT_MACINTOSH ) || defined( DARWIN_NO_CARBON )
+#ifndef FT_MACINTOSH
 
   /* The resource header says we've got resource_cnt `POST' (type1) */
   /* resources in this file.  They all need to be coalesced into    */
@@ -1459,7 +1542,7 @@
   {
     FT_Error   error  = FT_Err_Cannot_Open_Resource;
     FT_Memory  memory = library->memory;
-    FT_Byte*   pfb_data;
+    FT_Byte*   pfb_data = NULL;
     int        i, type, flags;
     FT_Long    len;
     FT_Long    pfb_len, pfb_pos, pfb_lenpos;
@@ -1507,11 +1590,26 @@
         goto Exit;
       if ( FT_READ_USHORT( flags ) )
         goto Exit;
-      rlen -= 2;                    /* the flags are part of the resource */
+      FT_TRACE3(( "POST fragment[%d]: offsets=0x%08x, rlen=0x%08x, flags=0x%04x\n",
+                   i, offsets[i], rlen, flags ));
+
+      /* postpone the check of rlen longer than buffer until FT_Stream_Read() */
+      if ( ( flags >> 8 ) == 0 )        /* Comment, should not be loaded */
+        continue;
+
+      /* the flags are part of the resource, so rlen >= 2.  */
+      /* but some fonts declare rlen = 0 for empty fragment */
+      if ( rlen > 2 )
+        rlen -= 2;
+      else
+        rlen = 0;
+
       if ( ( flags >> 8 ) == type )
         len += rlen;
       else
       {
+        if ( pfb_lenpos + 3 > pfb_len + 2 )
+          goto Exit2;
         pfb_data[pfb_lenpos    ] = (FT_Byte)( len );
         pfb_data[pfb_lenpos + 1] = (FT_Byte)( len >> 8 );
         pfb_data[pfb_lenpos + 2] = (FT_Byte)( len >> 16 );
@@ -1520,6 +1618,8 @@
         if ( ( flags >> 8 ) == 5 )      /* End of font mark */
           break;
 
+        if ( pfb_pos + 6 > pfb_len + 2 )
+          goto Exit2;
         pfb_data[pfb_pos++] = 0x80;
 
         type = flags >> 8;
@@ -1533,13 +1633,23 @@
         pfb_data[pfb_pos++] = 0;
       }
 
+      error = FT_Err_Cannot_Open_Resource;
+      if ( pfb_pos > pfb_len || pfb_pos + rlen > pfb_len )
+        goto Exit2;
+
       error = FT_Stream_Read( stream, (FT_Byte *)pfb_data + pfb_pos, rlen );
+      if ( error )
+        goto Exit2;
       pfb_pos += rlen;
     }
 
+    if ( pfb_pos + 2 > pfb_len + 2 )
+      goto Exit2;
     pfb_data[pfb_pos++] = 0x80;
     pfb_data[pfb_pos++] = 3;
 
+    if ( pfb_lenpos + 3 > pfb_len + 2 )
+      goto Exit2;
     pfb_data[pfb_lenpos    ] = (FT_Byte)( len );
     pfb_data[pfb_lenpos + 1] = (FT_Byte)( len >> 8 );
     pfb_data[pfb_lenpos + 2] = (FT_Byte)( len >> 16 );
@@ -1574,7 +1684,7 @@
                           FT_Face    *aface )
   {
     FT_Memory  memory = library->memory;
-    FT_Byte*   sfnt_data;
+    FT_Byte*   sfnt_data = NULL;
     FT_Error   error;
     FT_Long    flag_offset;
     FT_Long    rlen;
@@ -1603,6 +1713,10 @@
                                            0, NULL,
                                            aface );
     if ( !error )
+      goto Exit;
+
+    /* rewind sfnt stream before open_face_PS_from_sfnt_stream() */
+    if ( FT_Stream_Seek( stream, flag_offset + 4 ) )
       goto Exit;
 
     if ( FT_ALLOC( sfnt_data, (FT_Long)rlen ) )
@@ -1754,6 +1868,7 @@
     char *     file_names[FT_RACCESS_N_RULES];
     FT_Long    offsets[FT_RACCESS_N_RULES];
     FT_Error   errors[FT_RACCESS_N_RULES];
+    FT_Bool    is_darwin_vfs, vfs_rfork_has_no_font = FALSE; /* not tested */
 
     FT_Open_Args  args2;
     FT_Stream     stream2 = 0;
@@ -1764,6 +1879,15 @@
 
     for ( i = 0; i < FT_RACCESS_N_RULES; i++ )
     {
+      is_darwin_vfs = ft_raccess_rule_by_darwin_vfs( library, i );
+      if ( is_darwin_vfs && vfs_rfork_has_no_font )
+      {
+        FT_TRACE3(( "Skip rule %d: darwin vfs resource fork"
+                    " is already checked and"
+                    " no font is found\n", i ));
+        continue;
+      }
+
       if ( errors[i] )
       {
         FT_TRACE3(( "Error[%d] has occurred in rule %d\n", errors[i], i ));
@@ -1777,6 +1901,9 @@
                   i, args2.pathname, offsets[i] ));
 
       error = FT_Stream_New( library, &args2, &stream2 );
+      if ( is_darwin_vfs && error == FT_Err_Cannot_Open_Stream )
+        vfs_rfork_has_no_font = TRUE;
+
       if ( error )
       {
         FT_TRACE3(( "failed\n" ));
@@ -1791,6 +1918,8 @@
 
       if ( !error )
           break;
+      else if ( is_darwin_vfs )
+          vfs_rfork_has_no_font = TRUE;
     }
 
     for (i = 0; i < FT_RACCESS_N_RULES; i++)
@@ -1870,9 +1999,9 @@
     FT_Error     error;
     FT_Driver    driver;
     FT_Memory    memory;
-    FT_Stream    stream = 0;
-    FT_Face      face = 0;
-    FT_ListNode  node = 0;
+    FT_Stream    stream = NULL;
+    FT_Face      face   = NULL;
+    FT_ListNode  node   = NULL;
     FT_Bool      external_stream;
     FT_Module*   cur;
     FT_Module*   limit;
@@ -2096,6 +2225,8 @@
 
       internal->transform_delta.x = 0;
       internal->transform_delta.y = 0;
+
+      internal->refcount = 1;
     }
 
     if ( aface )
@@ -2184,6 +2315,17 @@
   /* documentation is in freetype.h */
 
   FT_EXPORT_DEF( FT_Error )
+  FT_Reference_Face( FT_Face  face )
+  {
+    face->internal->refcount++;
+
+    return FT_Err_Ok;
+  }
+
+
+  /* documentation is in freetype.h */
+
+  FT_EXPORT_DEF( FT_Error )
   FT_Done_Face( FT_Face  face )
   {
     FT_Error     error;
@@ -2195,22 +2337,29 @@
     error = FT_Err_Invalid_Face_Handle;
     if ( face && face->driver )
     {
-      driver = face->driver;
-      memory = driver->root.memory;
-
-      /* find face in driver's list */
-      node = FT_List_Find( &driver->faces_list, face );
-      if ( node )
-      {
-        /* remove face object from the driver's list */
-        FT_List_Remove( &driver->faces_list, node );
-        FT_FREE( node );
-
-        /* now destroy the object proper */
-        destroy_face( memory, face, driver );
+      face->internal->refcount--;
+      if ( face->internal->refcount > 0 )
         error = FT_Err_Ok;
+      else
+      {
+        driver = face->driver;
+        memory = driver->root.memory;
+
+        /* find face in driver's list */
+        node = FT_List_Find( &driver->faces_list, face );
+        if ( node )
+        {
+          /* remove face object from the driver's list */
+          FT_List_Remove( &driver->faces_list, node );
+          FT_FREE( node );
+
+          /* now destroy the object proper */
+          destroy_face( memory, face, driver );
+          error = FT_Err_Ok;
+        }
       }
     }
+
     return error;
   }
 
@@ -2381,12 +2530,24 @@
   ft_synthesize_vertical_metrics( FT_Glyph_Metrics*  metrics,
                                   FT_Pos             advance )
   {
+    FT_Pos  height = metrics->height;
+
+
+    /* compensate for glyph with bbox above/below the baseline */
+    if ( metrics->horiBearingY < 0 )
+    {
+      if ( height < metrics->horiBearingY )
+        height = metrics->horiBearingY;
+    }
+    else if ( metrics->horiBearingY > 0 )
+      height -= metrics->horiBearingY;
+
     /* the factor 1.2 is a heuristical value */
     if ( !advance )
-      advance = metrics->height * 12 / 10;
+      advance = height * 12 / 10;
 
-    metrics->vertBearingX = -( metrics->width / 2 );
-    metrics->vertBearingY = ( advance - metrics->height ) / 2;
+    metrics->vertBearingX = metrics->horiBearingX - metrics->horiAdvance / 2;
+    metrics->vertBearingY = ( advance - height ) / 2;
     metrics->vertAdvance  = advance;
   }
 
@@ -2450,13 +2611,25 @@
     }
     else
     {
-      metrics->x_scale     = 1L << 22;
-      metrics->y_scale     = 1L << 22;
+      metrics->x_scale     = 1L << 16;
+      metrics->y_scale     = 1L << 16;
       metrics->ascender    = bsize->y_ppem;
       metrics->descender   = 0;
       metrics->height      = bsize->height << 6;
       metrics->max_advance = bsize->x_ppem;
     }
+
+    FT_TRACE5(( "FT_Select_Metrics:\n" ));
+    FT_TRACE5(( "  x scale: %d (%f)\n",
+                metrics->x_scale, metrics->x_scale / 65536.0 ));
+    FT_TRACE5(( "  y scale: %d (%f)\n",
+                metrics->y_scale, metrics->y_scale / 65536.0 ));
+    FT_TRACE5(( "  ascender: %f\n",    metrics->ascender / 64.0 ));
+    FT_TRACE5(( "  descender: %f\n",   metrics->descender / 64.0 ));
+    FT_TRACE5(( "  height: %f\n",      metrics->height / 64.0 ));
+    FT_TRACE5(( "  max advance: %f\n", metrics->max_advance / 64.0 ));
+    FT_TRACE5(( "  x ppem: %d\n",      metrics->x_ppem ));
+    FT_TRACE5(( "  y ppem: %d\n",      metrics->y_ppem ));
   }
 
 
@@ -2562,9 +2735,21 @@
     else
     {
       FT_ZERO( metrics );
-      metrics->x_scale = 1L << 22;
-      metrics->y_scale = 1L << 22;
+      metrics->x_scale = 1L << 16;
+      metrics->y_scale = 1L << 16;
     }
+
+    FT_TRACE5(( "FT_Request_Metrics:\n" ));
+    FT_TRACE5(( "  x scale: %d (%f)\n",
+                metrics->x_scale, metrics->x_scale / 65536.0 ));
+    FT_TRACE5(( "  y scale: %d (%f)\n",
+                metrics->y_scale, metrics->y_scale / 65536.0 ));
+    FT_TRACE5(( "  ascender: %f\n",    metrics->ascender / 64.0 ));
+    FT_TRACE5(( "  descender: %f\n",   metrics->descender / 64.0 ));
+    FT_TRACE5(( "  height: %f\n",      metrics->height / 64.0 ));
+    FT_TRACE5(( "  max advance: %f\n", metrics->max_advance / 64.0 ));
+    FT_TRACE5(( "  x ppem: %d\n",      metrics->x_ppem ));
+    FT_TRACE5(( "  y ppem: %d\n",      metrics->y_ppem ));
   }
 
 
@@ -2586,7 +2771,33 @@
     clazz = face->driver->clazz;
 
     if ( clazz->select_size )
-      return clazz->select_size( face->size, (FT_ULong)strike_index );
+    {
+      FT_Error  error;
+
+
+      error = clazz->select_size( face->size, (FT_ULong)strike_index );
+
+#ifdef FT_DEBUG_LEVEL_TRACE
+      {
+        FT_Size_Metrics*  metrics = &face->size->metrics;
+
+
+        FT_TRACE5(( "FT_Select_Size (font driver's `select_size'):\n" ));
+        FT_TRACE5(( "  x scale: %d (%f)\n",
+                    metrics->x_scale, metrics->x_scale / 65536.0 ));
+        FT_TRACE5(( "  y scale: %d (%f)\n",
+                    metrics->y_scale, metrics->y_scale / 65536.0 ));
+        FT_TRACE5(( "  ascender: %f\n",    metrics->ascender / 64.0 ));
+        FT_TRACE5(( "  descender: %f\n",   metrics->descender / 64.0 ));
+        FT_TRACE5(( "  height: %f\n",      metrics->height / 64.0 ));
+        FT_TRACE5(( "  max advance: %f\n", metrics->max_advance / 64.0 ));
+        FT_TRACE5(( "  x ppem: %d\n",      metrics->x_ppem ));
+        FT_TRACE5(( "  y ppem: %d\n",      metrics->y_ppem ));
+      }
+#endif
+
+      return error;
+    }
 
     FT_Select_Metrics( face, (FT_ULong)strike_index );
 
@@ -2614,7 +2825,33 @@
     clazz = face->driver->clazz;
 
     if ( clazz->request_size )
-      return clazz->request_size( face->size, req );
+    {
+      FT_Error  error;
+
+
+      error = clazz->request_size( face->size, req );
+
+#ifdef FT_DEBUG_LEVEL_TRACE
+      {
+        FT_Size_Metrics*  metrics = &face->size->metrics;
+
+
+        FT_TRACE5(( "FT_Request_Size (font driver's `request_size'):\n" ));
+        FT_TRACE5(( "  x scale: %d (%f)\n",
+                    metrics->x_scale, metrics->x_scale / 65536.0 ));
+        FT_TRACE5(( "  y scale: %d (%f)\n",
+                    metrics->y_scale, metrics->y_scale / 65536.0 ));
+        FT_TRACE5(( "  ascender: %f\n",    metrics->ascender / 64.0 ));
+        FT_TRACE5(( "  descender: %f\n",   metrics->descender / 64.0 ));
+        FT_TRACE5(( "  height: %f\n",      metrics->height / 64.0 ));
+        FT_TRACE5(( "  max advance: %f\n", metrics->max_advance / 64.0 ));
+        FT_TRACE5(( "  x ppem: %d\n",      metrics->x_ppem ));
+        FT_TRACE5(( "  y ppem: %d\n",      metrics->y_ppem ));
+      }
+#endif
+
+      return error;
+    }
 
     /*
      * The reason that a driver doesn't have `request_size' defined is
@@ -2844,6 +3081,15 @@
     {
       if ( cur[0]->encoding == encoding )
       {
+#ifdef FT_MAX_CHARMAP_CACHEABLE
+        if ( cur - face->charmaps > FT_MAX_CHARMAP_CACHEABLE )
+        {
+          FT_ERROR(( "FT_Select_Charmap: requested charmap is found (%d), "
+                     "but in too late position to cache\n",
+                     cur - face->charmaps ));
+          continue;
+        }
+#endif
         face->charmap = cur[0];
         return 0;
       }
@@ -2878,6 +3124,15 @@
     {
       if ( cur[0] == charmap )
       {
+#ifdef FT_MAX_CHARMAP_CACHEABLE
+        if ( cur - face->charmaps > FT_MAX_CHARMAP_CACHEABLE )
+        {
+          FT_ERROR(( "FT_Set_Charmap: requested charmap is found (%d), "
+                     "but in too late position to cache\n",
+                     cur - face->charmaps ));
+          continue;
+        }
+#endif
         face->charmap = cur[0];
         return 0;
       }
@@ -2894,12 +3149,24 @@
     FT_Int  i;
 
 
+    if ( !charmap || !charmap->face )
+      return -1;
+
     for ( i = 0; i < charmap->face->num_charmaps; i++ )
       if ( charmap->face->charmaps[i] == charmap )
         break;
 
     FT_ASSERT( i < charmap->face->num_charmaps );
 
+#ifdef FT_MAX_CHARMAP_CACHEABLE
+    if ( i > FT_MAX_CHARMAP_CACHEABLE )
+    {
+      FT_ERROR(( "FT_Get_Charmap_Index: requested charmap is found (%d), "
+                 "but in too late position to cache\n",
+                 i ));
+      return -i;
+    }
+#endif
     return i;
   }
 
@@ -2974,7 +3241,7 @@
     FT_Error   error = FT_Err_Ok;
     FT_Face    face;
     FT_Memory  memory;
-    FT_CMap    cmap;
+    FT_CMap    cmap = NULL;
 
 
     if ( clazz == NULL || charmap == NULL || charmap->face == NULL )
@@ -3031,9 +3298,14 @@
       FT_CMap  cmap = FT_CMAP( face->charmap );
 
 
-      result = cmap->clazz->char_index( cmap, charcode );
+      if ( charcode > 0xFFFFFFFFUL )
+      {
+        FT_TRACE1(( "FT_Get_Char_Index: too large charcode" ));
+        FT_TRACE1(( " 0x%x is truncated\n", charcode ));
+      }
+      result = cmap->clazz->char_index( cmap, (FT_UInt32)charcode );
     }
-    return  result;
+    return result;
   }
 
 
@@ -3047,14 +3319,14 @@
     FT_UInt   gindex = 0;
 
 
-    if ( face && face->charmap )
+    if ( face && face->charmap && face->num_glyphs )
     {
       gindex = FT_Get_Char_Index( face, 0 );
-      if ( gindex == 0 )
+      if ( gindex == 0 || gindex >= (FT_UInt)face->num_glyphs )
         result = FT_Get_Next_Char( face, 0, &gindex );
     }
 
-    if ( agindex  )
+    if ( agindex )
       *agindex = gindex;
 
     return result;
@@ -3072,13 +3344,16 @@
     FT_UInt   gindex = 0;
 
 
-    if ( face && face->charmap )
+    if ( face && face->charmap && face->num_glyphs )
     {
       FT_UInt32  code = (FT_UInt32)charcode;
       FT_CMap    cmap = FT_CMAP( face->charmap );
 
 
-      gindex = cmap->clazz->char_next( cmap, &code );
+      do {
+        gindex = cmap->clazz->char_next( cmap, &code );
+      } while ( gindex >= (FT_UInt)face->num_glyphs );
+
       result = ( gindex == 0 ) ? 0 : code;
     }
 
@@ -3111,8 +3386,20 @@
         FT_CMap  vcmap = FT_CMAP( charmap );
 
 
-        result = vcmap->clazz->char_var_index( vcmap, ucmap, charcode,
-                                               variantSelector );
+        if ( charcode > 0xFFFFFFFFUL )
+        {
+          FT_TRACE1(( "FT_Get_Char_Index: too large charcode" ));
+          FT_TRACE1(( " 0x%x is truncated\n", charcode ));
+        }
+        if ( variantSelector > 0xFFFFFFFFUL )
+        {
+          FT_TRACE1(( "FT_Get_Char_Index: too large variantSelector" ));
+          FT_TRACE1(( " 0x%x is truncated\n", variantSelector ));
+        }
+
+        result = vcmap->clazz->char_var_index( vcmap, ucmap,
+                                               (FT_UInt32)charcode,
+                                               (FT_UInt32)variantSelector );
       }
     }
 
@@ -3140,8 +3427,20 @@
         FT_CMap  vcmap = FT_CMAP( charmap );
 
 
-        result = vcmap->clazz->char_var_default( vcmap, charcode,
-                                                 variantSelector );
+        if ( charcode > 0xFFFFFFFFUL )
+        {
+          FT_TRACE1(( "FT_Get_Char_Index: too large charcode" ));
+          FT_TRACE1(( " 0x%x is truncated\n", charcode ));
+        }
+        if ( variantSelector > 0xFFFFFFFFUL )
+        {
+          FT_TRACE1(( "FT_Get_Char_Index: too large variantSelector" ));
+          FT_TRACE1(( " 0x%x is truncated\n", variantSelector ));
+        }
+
+        result = vcmap->clazz->char_var_default( vcmap,
+                                                 (FT_UInt32)charcode,
+                                                 (FT_UInt32)variantSelector );
       }
     }
 
@@ -3196,7 +3495,14 @@
         FT_Memory  memory = FT_FACE_MEMORY( face );
 
 
-        result = vcmap->clazz->charvariant_list( vcmap, memory, charcode );
+        if ( charcode > 0xFFFFFFFFUL )
+        {
+          FT_TRACE1(( "FT_Get_Char_Index: too large charcode" ));
+          FT_TRACE1(( " 0x%x is truncated\n", charcode ));
+        }
+
+        result = vcmap->clazz->charvariant_list( vcmap, memory,
+                                                 (FT_UInt32)charcode );
       }
     }
     return result;
@@ -3223,8 +3529,14 @@
         FT_Memory  memory = FT_FACE_MEMORY( face );
 
 
+        if ( variantSelector > 0xFFFFFFFFUL )
+        {
+          FT_TRACE1(( "FT_Get_Char_Index: too large variantSelector" ));
+          FT_TRACE1(( " 0x%x is truncated\n", variantSelector ));
+        }
+
         result = vcmap->clazz->variantchar_list( vcmap, memory,
-                                                 variantSelector );
+                                                 (FT_UInt32)variantSelector );
       }
     }
 
@@ -3274,7 +3586,7 @@
       ((FT_Byte*)buffer)[0] = 0;
 
     if ( face                                     &&
-         glyph_index <= (FT_UInt)face->num_glyphs &&
+         (FT_Long)glyph_index <= face->num_glyphs &&
          FT_HAS_GLYPH_NAMES( face )               )
     {
       FT_Service_GlyphDict  service;
@@ -3374,6 +3686,7 @@
                       FT_ULong  *length )
   {
     FT_Service_SFNT_Table  service;
+    FT_ULong               offset;
 
 
     if ( !face || !FT_IS_SFNT( face ) )
@@ -3383,7 +3696,7 @@
     if ( service == NULL )
       return FT_Err_Unimplemented_Feature;
 
-    return service->table_info( face, table_index, tag, length );
+    return service->table_info( face, table_index, tag, &offset, length );
   }
 
 
@@ -3545,7 +3858,7 @@
     FT_Library   library = module->library;
     FT_Memory    memory  = library->memory;
     FT_Error     error;
-    FT_ListNode  node;
+    FT_ListNode  node    = NULL;
 
 
     if ( FT_NEW( node ) )
@@ -3561,7 +3874,7 @@
 
       /* allocate raster object if needed */
       if ( clazz->glyph_format == FT_GLYPH_FORMAT_OUTLINE &&
-           clazz->raster_class->raster_new )
+           clazz->raster_class->raster_new                )
       {
         error = clazz->raster_class->raster_new( memory, &render->raster );
         if ( error )
@@ -3602,7 +3915,8 @@
 
 
       /* release raster object, if any */
-      if ( render->raster )
+      if ( render->clazz->glyph_format == FT_GLYPH_FORMAT_OUTLINE &&
+           render->raster                                         )
         render->clazz->raster_class->raster_done( render->raster );
 
       /* remove from list */
@@ -3666,6 +3980,7 @@
         error = set_mode( renderer, parameters->tag, parameters->data );
         if ( error )
           break;
+        parameters++;
       }
     }
 
@@ -3708,7 +4023,7 @@
         while ( renderer )
         {
           error = renderer->render( renderer, slot, render_mode, NULL );
-          if ( !error ||
+          if ( !error                                               ||
                FT_ERROR_BASE( error ) != FT_Err_Cannot_Render_Glyph )
             break;
 
@@ -3742,7 +4057,7 @@
     FT_Library  library;
 
 
-    if ( !slot )
+    if ( !slot || !slot->face )
       return FT_Err_Invalid_Argument;
 
     library = FT_FACE_LIBRARY( slot->face );
@@ -3774,10 +4089,10 @@
   /*    all child faces.                                                   */
   /*                                                                       */
   /* <InOut>                                                               */
-  /*     module :: A handle to the target driver object.                   */
+  /*    module :: A handle to the target driver object.                    */
   /*                                                                       */
   /* <Note>                                                                */
-  /*     The driver _must_ be LOCKED!                                      */
+  /*    The driver _must_ be LOCKED!                                       */
   /*                                                                       */
   static void
   Destroy_Module( FT_Module  module )
@@ -3786,10 +4101,6 @@
     FT_Module_Class*  clazz   = module->clazz;
     FT_Library        library = module->library;
 
-
-    /* finalize client-data - before anything else */
-    if ( module->generic.finalizer )
-      module->generic.finalizer( module );
 
     if ( library && library->auto_hinter == module )
       library->auto_hinter = 0;
@@ -3929,7 +4240,8 @@
       FT_Renderer  renderer = FT_RENDERER( module );
 
 
-      if ( renderer->raster )
+      if ( renderer->clazz->glyph_format == FT_GLYPH_FORMAT_OUTLINE &&
+           renderer->raster                                         )
         renderer->clazz->raster_class->raster_done( renderer->raster );
     }
 
@@ -4005,6 +4317,7 @@
         FT_Library  library = module->library;
         FT_Module*  cur     = library->modules;
         FT_Module*  limit   = cur + library->num_modules;
+
 
         for ( ; cur < limit; cur++ )
         {
@@ -4085,10 +4398,21 @@
   /* documentation is in ftmodapi.h */
 
   FT_EXPORT_DEF( FT_Error )
+  FT_Reference_Library( FT_Library  library )
+  {
+    library->refcount++;
+
+    return FT_Err_Ok;
+  }
+
+
+  /* documentation is in ftmodapi.h */
+
+  FT_EXPORT_DEF( FT_Error )
   FT_New_Library( FT_Memory    memory,
                   FT_Library  *alibrary )
   {
-    FT_Library  library = 0;
+    FT_Library  library = NULL;
     FT_Error    error;
 
 
@@ -4106,6 +4430,13 @@
 
     library->memory = memory;
 
+#ifdef FT_CONFIG_OPTION_PIC
+    /* initialize position independent code containers */
+    error = ft_pic_container_init( library );
+    if ( error )
+      goto Fail;
+#endif
+
     /* allocate the render pool */
     library->raster_pool_size = FT_RENDER_POOL_SIZE;
 #if FT_RENDER_POOL_SIZE > 0
@@ -4113,12 +4444,21 @@
       goto Fail;
 #endif
 
+    library->version_major = FREETYPE_MAJOR;
+    library->version_minor = FREETYPE_MINOR;
+    library->version_patch = FREETYPE_PATCH;
+
+    library->refcount = 1;
+
     /* That's ok now */
     *alibrary = library;
 
     return FT_Err_Ok;
 
   Fail:
+#ifdef FT_CONFIG_OPTION_PIC
+    ft_pic_container_destroy( library );
+#endif
     FT_FREE( library );
     return error;
   }
@@ -4166,40 +4506,60 @@
     if ( !library )
       return FT_Err_Invalid_Library_Handle;
 
+    library->refcount--;
+    if ( library->refcount > 0 )
+      goto Exit;
+
     memory = library->memory;
 
-    /* Discard client-data */
-    if ( library->generic.finalizer )
-      library->generic.finalizer( library );
-
-    /* Close all faces in the library.  If we don't do
-     * this, we can have some subtle memory leaks.
+    /*
+     * Close all faces in the library.  If we don't do this, we can have
+     * some subtle memory leaks.
+     *
      * Example:
      *
      *  - the cff font driver uses the pshinter module in cff_size_done
      *  - if the pshinter module is destroyed before the cff font driver,
      *    opened FT_Face objects managed by the driver are not properly
      *    destroyed, resulting in a memory leak
+     *
+     * Some faces are dependent on other faces, like Type42 faces that
+     * depend on TrueType faces synthesized internally.
+     *
+     * The order of drivers should be specified in driver_name[].
      */
     {
-      FT_UInt  n;
+      FT_UInt      m, n;
+      const char*  driver_name[] = { "type42", NULL };
 
 
-      for ( n = 0; n < library->num_modules; n++ )
+      for ( m = 0;
+            m < sizeof ( driver_name ) / sizeof ( driver_name[0] );
+            m++ )
       {
-        FT_Module  module = library->modules[n];
-        FT_List    faces;
-
-
-        if ( ( module->clazz->module_flags & FT_MODULE_FONT_DRIVER ) == 0 )
-          continue;
-
-        faces = &FT_DRIVER(module)->faces_list;
-        while ( faces->head )
+        for ( n = 0; n < library->num_modules; n++ )
         {
-          FT_Done_Face( FT_FACE( faces->head->data ) );
-          if ( faces->head )
-            FT_ERROR(( "FT_Done_Library: failed to free some faces\n" ));
+          FT_Module    module      = library->modules[n];
+          const char*  module_name = module->clazz->module_name;
+          FT_List      faces;
+
+
+          if ( driver_name[m]                                &&
+               ft_strcmp( module_name, driver_name[m] ) != 0 )
+            continue;
+
+          if ( ( module->clazz->module_flags & FT_MODULE_FONT_DRIVER ) == 0 )
+            continue;
+
+          FT_TRACE7(( "FT_Done_Library: close faces for %s\n", module_name ));
+
+          faces = &FT_DRIVER( module )->faces_list;
+          while ( faces->head )
+          {
+            FT_Done_Face( FT_FACE( faces->head->data ) );
+            if ( faces->head )
+              FT_TRACE0(( "FT_Done_Library: failed to free some faces\n" ));
+          }
         }
       }
     }
@@ -4235,7 +4595,14 @@
     FT_FREE( library->raster_pool );
     library->raster_pool_size = 0;
 
+#ifdef FT_CONFIG_OPTION_PIC
+    /* Destroy pic container contents */
+    ft_pic_container_destroy( library );
+#endif
+
     FT_FREE( library );
+
+  Exit:
     return FT_Err_Ok;
   }
 
@@ -4348,6 +4715,8 @@
 #endif /* FT_CONFIG_OPTION_OLD_INTERNALS */
 
 
+  /* documentation is in freetype.h */
+
   FT_EXPORT_DEF( FT_Error )
   FT_Get_SubGlyph_Info( FT_GlyphSlot  glyph,
                         FT_UInt       sub_index,
@@ -4360,7 +4729,8 @@
     FT_Error  error = FT_Err_Invalid_Argument;
 
 
-    if ( glyph != NULL                              &&
+    if ( glyph                                      &&
+         glyph->subglyphs                           &&
          glyph->format == FT_GLYPH_FORMAT_COMPOSITE &&
          sub_index < glyph->num_subglyphs           )
     {
@@ -4375,29 +4745,6 @@
     }
 
     return error;
-  }
-
-
-  /* documentation is in freetype.h */
-
-  FT_EXPORT_DEF( FT_UShort )
-  FT_Get_FSType_Flags( FT_Face  face )
-  {
-    PS_FontInfoRec  font_info;
-    TT_OS2*         os2;
-
-
-    /* look at FSType before fsType for Type42 */
-
-    if ( !FT_Get_PS_Font_Info( face, &font_info ) &&
-         font_info.fs_type != 0                   )
-      return font_info.fs_type;
-
-    if ( ( os2 = (TT_OS2*)FT_Get_Sfnt_Table( face, ft_sfnt_os2 ) ) != NULL &&
-         os2->version != 0xFFFFU                                           )
-      return os2->fsType;
-
-    return 0;
   }
 
 

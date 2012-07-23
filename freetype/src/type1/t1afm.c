@@ -4,7 +4,7 @@
 /*                                                                         */
 /*    AFM support for Type 1 fonts (body).                                 */
 /*                                                                         */
-/*  Copyright 1996-2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008 by       */
+/*  Copyright 1996-2011 by                                                 */
 /*  David Turner, Robert Wilhelm, and Werner Lemberg.                      */
 /*                                                                         */
 /*  This file is part of the FreeType project, and may only be used,       */
@@ -50,12 +50,16 @@
   /* read a glyph name and return the equivalent glyph index */
   static FT_Int
   t1_get_index( const char*  name,
-                FT_UInt      len,
+                FT_Offset    len,
                 void*        user_data )
   {
     T1_Font  type1 = (T1_Font)user_data;
     FT_Int   n;
 
+
+    /* PS string/name length must be < 16-bit */
+    if ( len > 0xFFFFU )
+      return 0;
 
     for ( n = 0; n < type1->num_glyphs; n++ )
     {
@@ -231,10 +235,10 @@
                    FT_Stream  stream )
   {
     PSAux_Service  psaux;
-    FT_Memory      memory = stream->memory;
+    FT_Memory      memory  = stream->memory;
     AFM_ParserRec  parser;
-    AFM_FontInfo   fi;
-    FT_Error       error = T1_Err_Unknown_File_Format;
+    AFM_FontInfo   fi      = NULL;
+    FT_Error       error   = T1_Err_Unknown_File_Format;
     T1_Font        t1_font = &( (T1_Face)t1_face )->type1;
 
 
@@ -247,7 +251,7 @@
     fi->Descender = t1_font->font_bbox.yMin;
 
     psaux = (PSAux_Service)( (T1_Face)t1_face )->psaux;
-    if ( psaux && psaux->afm_parser_funcs )
+    if ( psaux->afm_parser_funcs )
     {
       error = psaux->afm_parser_funcs->init( &parser,
                                              stream->memory,
@@ -281,13 +285,15 @@
     {
       t1_font->font_bbox = fi->FontBBox;
 
-      t1_face->bbox.xMin =   fi->FontBBox.xMin             >> 16;
-      t1_face->bbox.yMin =   fi->FontBBox.yMin             >> 16;
-      t1_face->bbox.xMax = ( fi->FontBBox.xMax + 0xFFFFU ) >> 16;
-      t1_face->bbox.yMax = ( fi->FontBBox.yMax + 0xFFFFU ) >> 16;
+      t1_face->bbox.xMin =   fi->FontBBox.xMin            >> 16;
+      t1_face->bbox.yMin =   fi->FontBBox.yMin            >> 16;
+      /* no `U' suffix here to 0xFFFF! */
+      t1_face->bbox.xMax = ( fi->FontBBox.xMax + 0xFFFF ) >> 16;
+      t1_face->bbox.yMax = ( fi->FontBBox.yMax + 0xFFFF ) >> 16;
 
-      t1_face->ascender  = (FT_Short)( ( fi->Ascender  + 0x8000U ) >> 16 );
-      t1_face->descender = (FT_Short)( ( fi->Descender + 0x8000U ) >> 16 );
+      /* no `U' suffix here to 0x8000! */
+      t1_face->ascender  = (FT_Short)( ( fi->Ascender  + 0x8000 ) >> 16 );
+      t1_face->descender = (FT_Short)( ( fi->Descender + 0x8000 ) >> 16 );
 
       if ( fi->NumKernPair )
       {

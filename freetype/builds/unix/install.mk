@@ -30,30 +30,30 @@
 install: $(PROJECT_LIBRARY)
 	$(MKINSTALLDIRS) $(DESTDIR)$(libdir)                               \
                          $(DESTDIR)$(libdir)/pkgconfig                     \
-                         $(DESTDIR)$(includedir)/freetype/config \
-                         $(DESTDIR)$(includedir)/freetype/cache  \
+                         $(DESTDIR)$(includedir)/freetype2/freetype/config \
+                         $(DESTDIR)$(includedir)/freetype2/freetype/cache  \
                          $(DESTDIR)$(bindir)                               \
                          $(DESTDIR)$(datadir)/aclocal
 	$(LIBTOOL) --mode=install $(INSTALL)                             \
                                   $(PROJECT_LIBRARY) $(DESTDIR)$(libdir)
 	-for P in $(PUBLIC_H) ; do                           \
           $(INSTALL_DATA)                                    \
-            $$P $(DESTDIR)$(includedir)/freetype ; \
+            $$P $(DESTDIR)$(includedir)/freetype2/freetype ; \
         done
 	-for P in $(CONFIG_H) ; do                                  \
           $(INSTALL_DATA)                                           \
-            $$P $(DESTDIR)$(includedir)/freetype/config ; \
+            $$P $(DESTDIR)$(includedir)/freetype2/freetype/config ; \
         done
-	-$(DELETE) $(DESTDIR)$(includedir)/freetype/cache/*
-	-$(DELDIR) $(DESTDIR)$(includedir)/freetype/cache
-	-$(DELETE) $(DESTDIR)$(includedir)/freetype/internal/*
-	-$(DELDIR) $(DESTDIR)$(includedir)/freetype/internal
+	-$(DELETE) $(DESTDIR)$(includedir)/freetype2/freetype/cache/*
+	-$(DELDIR) $(DESTDIR)$(includedir)/freetype2/freetype/cache
+	-$(DELETE) $(DESTDIR)$(includedir)/freetype2/freetype/internal/*
+	-$(DELDIR) $(DESTDIR)$(includedir)/freetype2/freetype/internal
 	$(INSTALL_DATA) $(BUILD_DIR)/ft2unix.h \
           $(DESTDIR)$(includedir)/ft2build.h
 	$(INSTALL_DATA) $(OBJ_BUILD)/ftconfig.h                        \
-          $(DESTDIR)$(includedir)/freetype/config/ftconfig.h
+          $(DESTDIR)$(includedir)/freetype2/freetype/config/ftconfig.h
 	$(INSTALL_DATA) $(OBJ_DIR)/ftmodule.h                          \
-          $(DESTDIR)$(includedir)/freetype/config/ftmodule.h
+          $(DESTDIR)$(includedir)/freetype2/freetype/config/ftmodule.h
 	$(INSTALL_SCRIPT) -m 755 $(OBJ_BUILD)/freetype-config \
           $(DESTDIR)$(bindir)/freetype-config
 	$(INSTALL_SCRIPT) -m 644 $(BUILD_DIR)/freetype2.m4 \

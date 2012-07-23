@@ -4,7 +4,7 @@
 /*                                                                         */
 /*    High-level Type 42 driver interface (body).                          */
 /*                                                                         */
-/*  Copyright 2002, 2003, 2004, 2006, 2007 by Roberto Alameda.             */
+/*  Copyright 2002-2004, 2006, 2007, 2009, 2011 by Roberto Alameda.        */
 /*                                                                         */
 /*  This file is part of the FreeType project, and may only be used,       */
 /*  modified, and distributed under the terms of the FreeType project      */
@@ -49,11 +49,11 @@
 #define FT_COMPONENT  trace_t42
 
 
- /*
-  *
-  *  GLYPH DICT SERVICE
-  *
-  */
+  /*
+   *
+   *  GLYPH DICT SERVICE
+   *
+   */
 
   static FT_Error
   t42_get_glyph_name( T42_Face    face,
@@ -94,11 +94,11 @@
   };
 
 
- /*
-  *
-  *  POSTSCRIPT NAME SERVICE
-  *
-  */
+  /*
+   *
+   *  POSTSCRIPT NAME SERVICE
+   *
+   */
 
   static const char*
   t42_get_ps_font_name( T42_Face  face )
@@ -113,17 +113,28 @@
   };
 
 
- /*
-  *
-  *  POSTSCRIPT INFO SERVICE
-  *
-  */
+  /*
+   *
+   *  POSTSCRIPT INFO SERVICE
+   *
+   */
 
   static FT_Error
   t42_ps_get_font_info( FT_Face          face,
                         PS_FontInfoRec*  afont_info )
   {
     *afont_info = ((T42_Face)face)->type1.font_info;
+
+    return T42_Err_Ok;
+  }
+
+
+  static FT_Error
+  t42_ps_get_font_extra( FT_Face           face,
+                         PS_FontExtraRec*  afont_extra )
+  {
+    *afont_extra = ((T42_Face)face)->type1.font_extra;
+
     return T42_Err_Ok;
   }
 
@@ -132,6 +143,7 @@
   t42_ps_has_glyph_names( FT_Face  face )
   {
     FT_UNUSED( face );
+
     return 1;
   }
 
@@ -141,6 +153,7 @@
                            PS_PrivateRec*  afont_private )
   {
     *afont_private = ((T42_Face)face)->type1.private_dict;
+
     return T42_Err_Ok;
   }
 
@@ -148,16 +161,18 @@
   static const FT_Service_PsInfoRec  t42_service_ps_info =
   {
     (PS_GetFontInfoFunc)   t42_ps_get_font_info,
+    (PS_GetFontExtraFunc)  t42_ps_get_font_extra,
     (PS_HasGlyphNamesFunc) t42_ps_has_glyph_names,
-    (PS_GetFontPrivateFunc)t42_ps_get_font_private
+    (PS_GetFontPrivateFunc)t42_ps_get_font_private,
+    (PS_GetFontValueFunc)  NULL             /* not implemented */
   };
 
 
- /*
-  *
-  *  SERVICE LIST
-  *
-  */
+  /*
+   *
+   *  SERVICE LIST
+   *
+   */
 
   static const FT_ServiceDescRec  t42_services[] =
   {
@@ -169,11 +184,11 @@
   };
 
 
-  static FT_Module_Interface
-  T42_Get_Interface( FT_Driver         driver,
+  FT_CALLBACK_DEF( FT_Module_Interface )
+  T42_Get_Interface( FT_Module         module,
                      const FT_String*  t42_interface )
   {
-    FT_UNUSED( driver );
+    FT_UNUSED( module );
 
     return ft_service_list_lookup( t42_services, t42_interface );
   }
@@ -198,34 +213,34 @@
 
       0,    /* format interface */
 
-      (FT_Module_Constructor)T42_Driver_Init,
-      (FT_Module_Destructor) T42_Driver_Done,
-      (FT_Module_Requester)  T42_Get_Interface,
+      T42_Driver_Init,
+      T42_Driver_Done,
+      T42_Get_Interface,
     },
 
     sizeof ( T42_FaceRec ),
     sizeof ( T42_SizeRec ),
     sizeof ( T42_GlyphSlotRec ),
 
-    (FT_Face_InitFunc)        T42_Face_Init,
-    (FT_Face_DoneFunc)        T42_Face_Done,
-    (FT_Size_InitFunc)        T42_Size_Init,
-    (FT_Size_DoneFunc)        T42_Size_Done,
-    (FT_Slot_InitFunc)        T42_GlyphSlot_Init,
-    (FT_Slot_DoneFunc)        T42_GlyphSlot_Done,
+    T42_Face_Init,
+    T42_Face_Done,
+    T42_Size_Init,
+    T42_Size_Done,
+    T42_GlyphSlot_Init,
+    T42_GlyphSlot_Done,
 
 #ifdef FT_CONFIG_OPTION_OLD_INTERNALS
     ft_stub_set_char_sizes,
     ft_stub_set_pixel_sizes,
 #endif
-    (FT_Slot_LoadFunc)        T42_GlyphSlot_Load,
+    T42_GlyphSlot_Load,
 
-    (FT_Face_GetKerningFunc)  0,
-    (FT_Face_AttachFunc)      0,
+    0,                 /* FT_Face_GetKerningFunc  */
+    0,                 /* FT_Face_AttachFunc      */
 
-    (FT_Face_GetAdvancesFunc) 0,
-    (FT_Size_RequestFunc)     T42_Size_Request,
-    (FT_Size_SelectFunc)      T42_Size_Select
+    0,                 /* FT_Face_GetAdvancesFunc */
+    T42_Size_Request,
+    T42_Size_Select
   };
 
 

@@ -3,7 +3,7 @@
 <html>
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-<title>FreeType-2.3.8 API Reference</title>
+<title>FreeType-2.4.10 API Reference</title>
 <style type="text/css">
   body { font-family: Verdana, Geneva, Arial, Helvetica, serif;
          color: #000000;
@@ -35,7 +35,7 @@
 <table align=center><tr><td><font size=-1>[<a href="ft2-index.html">Index</a>]</font></td>
 <td width="100%"></td>
 <td><font size=-1>[<a href="ft2-toc.html">TOC</a>]</font></td></tr></table>
-<center><h1>FreeType-2.3.8 API Reference</h1></center>
+<center><h1>FreeType-2.4.10 API Reference</h1></center>
 
 <center><h1>
 Basic Data Types
@@ -468,7 +468,7 @@ Defined in FT_IMAGE_H (freetype/ftimage.h).
 
 </pre></table><br>
 <table align=center width="87%"><tr><td>
-<p>The type FT_Pos is a 32-bit integer used to store vectorial coordinates. Depending on the context, these can represent distances in integer font units, or 16.16, or 26.6 fixed float pixel coordinates.</p>
+<p>The type FT_Pos is used to store vectorial coordinates. Depending on the context, these can represent distances in integer font units, or 16.16, or 26.6 fixed float pixel coordinates.</p>
 </td></tr></table><br>
 </td></tr></table>
 <hr width="75%">
@@ -545,6 +545,11 @@ Defined in FT_IMAGE_H (freetype/ftimage.h).
 <p>The vertical maximum (top-most).</p>
 </td></tr>
 </table>
+</td></tr></table>
+<table align=center width="87%" cellpadding=5><tr bgcolor="#EEEEFF"><td><em><b>note</b></em></td></tr><tr><td>
+<p>The bounding box is specified with the coordinates of the lower left and the upper right corner. In PostScript, those values are often called (llx,lly) and (urx,ury), respectively.</p>
+<p>If &lsquo;yMin&rsquo; is negative, this value gives the glyph's descender. Otherwise, the glyph doesn't descend below the baseline. Similarly, if &lsquo;ymax&rsquo; is positive, this value gives the glyph's ascender.</p>
+<p>&lsquo;xMin&rsquo; gives the horizontal distance from the glyph's origin to the left edge of the glyph's bounding box. If &lsquo;xMin&rsquo; is negative, the glyph extends to the left of the origin.</p>
 </td></tr></table>
 </td></tr></table>
 <hr width="75%">
@@ -884,6 +889,9 @@ Defined in FT_IMAGE_H (freetype/ftimage.h).
 </td></tr>
 <tr valign=top><td><b>pitch</b></td><td>
 <p>The pitch's absolute value is the number of bytes taken by one bitmap row, including padding. However, the pitch is positive when the bitmap has a &lsquo;down&rsquo; flow, and negative when it has an &lsquo;up&rsquo; flow. In all cases, the pitch is an offset to add to a bitmap pointer in order to go down one row.</p>
+<p>Note that &lsquo;padding&rsquo; means the alignment of a bitmap to a byte border, and FreeType functions normally align to the smallest possible integer value.</p>
+<p>For the B/W rasterizer, &lsquo;pitch&rsquo; is always an even number.</p>
+<p>To change the pitch of a bitmap (say, to make it a multiple of 4), use <a href="ft2-bitmap_handling.html#FT_Bitmap_Convert">FT_Bitmap_Convert</a>. Alternatively, you might use callback functions to directly render to the application's surface; see the file &lsquo;example2.cpp&rsquo; in the tutorial for a demonstration.</p>
 </td></tr>
 <tr valign=top><td><b>buffer</b></td><td>
 <p>A typeless pointer to the bitmap buffer. This value should be aligned on 32-bit boundaries in most cases.</p>
@@ -1114,7 +1122,7 @@ Defined in FT_TYPES_H (freetype/fttypes.h).
 </pre></table><br>
 <table align=center width="87%"><tr><td>
 <p>Client applications often need to associate their own data to a variety of FreeType core objects. For example, a text layout API might want to associate a glyph cache to a given size object.</p>
-<p>Most FreeType object contains a &lsquo;generic&rsquo; field, of type FT_Generic, which usage is left to client applications and font servers.</p>
+<p>Some FreeType object contains a &lsquo;generic&rsquo; field, of type FT_Generic, which usage is left to client applications and font servers.</p>
 <p>It can be used to store a pointer to client-specific data, as well as the address of a &lsquo;finalizer&rsquo; function, which will be called by FreeType when the object is destroyed (for example, the previous client example would put the address of the glyph cache destructor in the &lsquo;finalizer&rsquo; field).</p>
 </td></tr></table><br>
 <table align=center width="87%" cellpadding=5><tr bgcolor="#EEEEFF"><td><em><b>fields</b></em></td></tr><tr><td>
@@ -1142,6 +1150,7 @@ Defined in FT_TYPES_H (freetype/fttypes.h).
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
 #define <b>FT_MAKE_TAG</b>( _x1, _x2, _x3, _x4 ) \
+          (<a href="ft2-basic_types.html#FT_Tag">FT_Tag</a>)                        \
           ( ( (<a href="ft2-basic_types.html#FT_ULong">FT_ULong</a>)_x1 &lt;&lt; 24 ) |     \
             ( (<a href="ft2-basic_types.html#FT_ULong">FT_ULong</a>)_x2 &lt;&lt; 16 ) |     \
             ( (<a href="ft2-basic_types.html#FT_ULong">FT_ULong</a>)_x3 &lt;&lt;  8 ) |     \

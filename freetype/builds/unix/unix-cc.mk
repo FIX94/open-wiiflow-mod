@@ -12,10 +12,11 @@
 # fully.
 
 
-CC           := ${DEVKITPRO}/devkitPPC/bin/powerpc-eabi-gcc
+CC           := powerpc-eabi-gcc
 COMPILER_SEP := $(SEP)
+FT_LIBTOOL_DIR ?= $(BUILD_DIR)
 
-LIBTOOL ?= $(BUILD_DIR)/libtool
+LIBTOOL := $(FT_LIBTOOL_DIR)/libtool
 
 
 # The object file extension (for standard and static libraries).  This can be
@@ -77,12 +78,12 @@ T := -o$(space)
 #
 #   We use our own FreeType configuration file.
 #
-CPPFLAGS := 
-CFLAGS   := -c -Os -mcpu=750 -DFT_CONFIG_CONFIG_H="<ftconfig.h>"
+CPPFLAGS := -I/c/devkitPro/portlibs/ppc/include
+CFLAGS   := -c -Wall -g -O2 -DFT_CONFIG_OPTION_SYSTEM_ZLIB -DFT_CONFIG_CONFIG_H="<ftconfig.h>"
 
 # ANSIFLAGS: Put there the flags used to make your compiler ANSI-compliant.
 #
-ANSIFLAGS := 
+ANSIFLAGS :=  -pedantic -ansi
 
 # C compiler to use -- we use libtool!
 #
@@ -92,7 +93,7 @@ CC    := $(LIBTOOL) --mode=compile $(CCraw)
 
 # Linker flags.
 #
-LDFLAGS := 
+LDFLAGS := -L/c/devkitPro/portlibs/ppc/lib -lz
 
 
 # export symbols

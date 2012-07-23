@@ -4,7 +4,7 @@
 /*                                                                         */
 /*    Some convenience conversions (body).                                 */
 /*                                                                         */
-/*  Copyright 2006, 2008 by                                                */
+/*  Copyright 2006, 2008, 2009, 2012 by                                    */
 /*  David Turner, Robert Wilhelm, and Werner Lemberg.                      */
 /*                                                                         */
 /*  This file is part of the FreeType project, and may only be used,       */
@@ -18,10 +18,8 @@
 
 #include <ft2build.h>
 #include FT_INTERNAL_POSTSCRIPT_AUX_H
-#include FT_INTERNAL_DEBUG_H
 
 #include "psconv.h"
-#include "psobjs.h"
 #include "psauxerr.h"
 
 
@@ -81,7 +79,7 @@
     FT_Bool   sign = 0;
 
 
-    if ( p == limit || base < 2 || base > 36 )
+    if ( p >= limit || base < 2 || base > 36 )
       return 0;
 
     if ( *p == '-' || *p == '+' )
@@ -152,7 +150,7 @@
     FT_Bool   sign = 0;
 
 
-    if ( p == limit )
+    if ( p >= limit )
       return 0;
 
     if ( *p == '-' || *p == '+' )
@@ -241,7 +239,7 @@
   PS_Conv_StringDecode( FT_Byte**  cursor,
                         FT_Byte*   limit,
                         FT_Byte*   buffer,
-                        FT_UInt    n )
+                        FT_Offset  n )
   {
     FT_Byte*  p;
     FT_UInt   r = 0;
@@ -336,7 +334,7 @@
   PS_Conv_ASCIIHexDecode( FT_Byte**  cursor,
                           FT_Byte*   limit,
                           FT_Byte*   buffer,
-                          FT_UInt    n )
+                          FT_Offset  n )
   {
     FT_Byte*  p;
     FT_UInt   r   = 0;
@@ -348,7 +346,11 @@
 
 #if 1
 
-    p  = *cursor;
+    p = *cursor;
+
+    if ( p >= limit )
+      return 0;
+
     if ( n > (FT_UInt)( limit - p ) )
       n = (FT_UInt)( limit - p );
 
@@ -425,7 +427,7 @@
   PS_Conv_EexecDecode( FT_Byte**   cursor,
                        FT_Byte*    limit,
                        FT_Byte*    buffer,
-                       FT_UInt     n,
+                       FT_Offset   n,
                        FT_UShort*  seed )
   {
     FT_Byte*  p;
@@ -436,6 +438,10 @@
 #if 1
 
     p = *cursor;
+
+    if ( p >= limit )
+      return 0;
+
     if ( n > (FT_UInt)(limit - p) )
       n = (FT_UInt)(limit - p);
 

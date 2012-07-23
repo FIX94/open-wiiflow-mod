@@ -8,7 +8,7 @@
 /*  parse compressed PCF fonts, as found with many X11 server              */
 /*  distributions.                                                         */
 /*                                                                         */
-/*  Copyright 2002, 2003, 2004, 2005, 2006, 2009 by                        */
+/*  Copyright 2002-2006, 2009-2012 by                                      */
 /*  David Turner, Robert Wilhelm, and Werner Lemberg.                      */
 /*                                                                         */
 /*  This file is part of the FreeType project, and may only be used,       */
@@ -32,6 +32,7 @@
 
 #undef __FTERRORS_H__
 
+#undef  FT_ERR_PREFIX
 #define FT_ERR_PREFIX  Gzip_Err_
 #define FT_ERR_BASE    FT_Mod_Err_Gzip
 
@@ -39,6 +40,10 @@
 
 
 #ifdef FT_CONFIG_OPTION_USE_ZLIB
+
+#ifdef FT_CONFIG_OPTION_PIC
+#error "gzip code does not support PIC yet"
+#endif
 
 #ifdef FT_CONFIG_OPTION_SYSTEM_ZLIB
 
@@ -54,7 +59,9 @@
  /* original ZLib.                                                   */
 
 #define NO_DUMMY_DECL
-#define MY_ZCALLOC
+#ifndef USE_ZLIB_ZCALLOC
+#define MY_ZCALLOC /* prevent all zcalloc() & zfree() in zutils.c */
+#endif
 
 #include "zlib.h"
 
@@ -101,7 +108,7 @@
   {
     FT_ULong    sz = (FT_ULong)size * items;
     FT_Error    error;
-    FT_Pointer  p;
+    FT_Pointer  p  = NULL;
 
 
     (void)FT_ALLOC( p, sz );
@@ -117,7 +124,7 @@
   }
 
 
-#ifndef FT_CONFIG_OPTION_SYSTEM_ZLIB
+#if !defined( FT_CONFIG_OPTION_SYSTEM_ZLIB ) && !defined( USE_ZLIB_ZCALLOC )
 
   local voidpf
   zcalloc ( voidpf    opaque,
@@ -134,7 +141,7 @@
     ft_gzip_free( (FT_Memory)opaque, ptr );
   }
 
-#endif /* !SYSTEM_ZLIB */
+#endif /* !SYSTEM_ZLIB && !USE_ZLIB_ZCALLOC */
 
 
 /***************************************************************************/
@@ -384,7 +391,7 @@
   ft_gzip_file_fill_output( FT_GZipFile  zip )
   {
     z_stream*  zstream = &zip->zstream;
-    FT_Error   error   = 0;
+    FT_Error   error   = Gzip_Err_Ok;
 
 
     zip->cursor        = zip->buffer;
@@ -565,11 +572,11 @@
     old_pos = stream->pos;
     if ( !FT_Stream_Seek( stream, stream->size - 4 ) )
     {
-      result = (FT_ULong)FT_Stream_ReadLong( stream, &error );
+      result = FT_Stream_ReadULong( stream, &error );
       if ( error )
         result = 0;
 
-      FT_Stream_Seek( stream, old_pos );
+      (void)FT_Stream_Seek( stream, old_pos );
     }
 
     return result;
@@ -582,7 +589,7 @@
   {
     FT_Error     error;
     FT_Memory    memory = source->memory;
-    FT_GZipFile  zip;
+    FT_GZipFile  zip = NULL;
 
 
     /*
@@ -622,7 +629,7 @@
 
       if ( zip_size != 0 && zip_size < 40 * 1024 )
       {
-        FT_Byte*  zip_buff;
+        FT_Byte*  zip_buff = NULL;
 
 
         if ( !FT_ALLOC( zip_buff, zip_size ) )
@@ -650,7 +657,7 @@
           ft_gzip_file_io( zip, 0, NULL, 0 );
           FT_FREE( zip_buff );
         }
-        error = 0;
+        error = Gzip_Err_Ok;
       }
     }
 
