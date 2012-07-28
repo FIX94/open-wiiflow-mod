@@ -21,16 +21,16 @@ SECTIONS {
 
 	.data : { *(.data) *(.data.*) }
 	.rodata : { *(.rodata) *(.rodata.*) }
-	//.sdata : { *(.sdata) *(.sdata.*) }
+
 	__bss_start = .;
-	//.sbss : { *(.sbss) *(.sbss.*) }
 	.bss : { *(.bss) *(.bss.*) }
 	__bss_end = .;
 
-	. = ALIGN(0x40);
+	. = 0x80003400;
+	__stack_end = .;
 	.stack : {
-		. = . + 0x48000;
-		_stack_top = .;
+		. = . + 0x8000;
+		__stack_top = .;
 	}
 }
 

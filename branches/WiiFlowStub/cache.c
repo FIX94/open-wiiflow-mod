@@ -11,13 +11,6 @@
 
 #include "types.h"
 
-// this saves 12 bytes
-static void syncret(void) __attribute__((noinline));
-static void syncret(void)
-{
-	asm("sync ; isync");
-}
-
 void sync_before_read(void *p, u32 len)
 {
 	u32 a, b;
@@ -28,7 +21,7 @@ void sync_before_read(void *p, u32 len)
 	for ( ; a < b; a += 32)
 		asm("dcbi 0,%0" : : "b"(a) : "memory");
 
-	syncret();
+	asm("sync ; isync");
 }
 
 void sync_after_write(const void *p, u32 len)
@@ -41,5 +34,6 @@ void sync_after_write(const void *p, u32 len)
 	for ( ; a < b; a += 32)
 		asm("dcbf 0,%0" : : "b"(a));
 
-	syncret();
+	asm("sync ; isync");
 }
+
