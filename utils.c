@@ -14,11 +14,8 @@
 #include "types.h"
 #include "utils.h"
 
-// Timebase frequency is core frequency / 8.  Ignore roundoff, this
-// doesn't have to be very accurate.
-#define TICKS_PER_USEC (729/8)
-
-static u32 mftb(void)
+static u32
+get_time(void)
 {
 	u32 x;
 
@@ -27,15 +24,10 @@ static u32 mftb(void)
 	return x;
 }
 
-static void __delay(u32 ticks)
+void
+usleep(u32 us)
 {
-	u32 start = mftb();
-
-	while (mftb() - start < ticks)
-		;
+	u32 _start = get_time();
+	while ((get_time() - _start) < (91*us)) ;
 }
 
-void udelay(u32 us)
-{
-	__delay(TICKS_PER_USEC * us);
-}

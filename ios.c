@@ -19,7 +19,8 @@
 
 // Low-level IPC access.
 
-static inline u32 iread32(u32 addr)
+static inline u32
+iread32(u32 addr)
 {
 	u32 x;
 
@@ -28,7 +29,8 @@ static inline u32 iread32(u32 addr)
 	return x;
 }
 
-static inline void iwrite32(u32 addr, u32 x)
+static inline void
+iwrite32(u32 addr, u32 x)
 {
 	asm volatile("stw %0,0(%1) ; eieio" : : "r"(x), "b"(0xc0000000 | addr));
 }
@@ -38,53 +40,62 @@ static void _ipc_write(u32 reg, u32 value) __attribute__((noinline));
 static void ipc_bell(u32 w) __attribute__((noinline));
 
 // inline the 4*, don't inline the 0x0d0 stuff. yes, this saves a few bytes.
-static u32 _ipc_read(u32 reg)
+static u32
+_ipc_read(u32 reg)
 {
 	return iread32(0x0d000000 + reg);
 }
 
-static void _ipc_write(u32 reg, u32 value)
+static void
+_ipc_write(u32 reg, u32 value)
 {
 	iwrite32(0x0d000000 + reg, value);
 }
 
-static inline u32 ipc_read(u32 reg)
+static inline u32
+ipc_read(u32 reg)
 {
 	return _ipc_read(4*reg);
 }
 
-static inline void ipc_write(u32 reg, u32 value)
+static inline void
+ipc_write(u32 reg, u32 value)
 {
 	_ipc_write(4*reg, value);
 }
 
-static void ipc_bell(u32 w)
+static void
+ipc_bell(u32 w)
 {
 	ipc_write(1, w);
 }
 
 static void ios_delay(void) __attribute__((noinline));
 
-static void ios_delay(void)
+static void
+ios_delay(void)
 {
-	udelay(500);
+	usleep(500);
 }
 
-static void ipc_wait_ack(void)
+static void
+ipc_wait_ack(void)
 {
 	while(!(ipc_read(1) & 0x2))
 		;
 	ios_delay();
 }
 
-static void ipc_wait_reply(void)
+static void
+ipc_wait_reply(void)
 {
 	while(!(ipc_read(1) & 0x4))
 		;
 	ios_delay();
 }
 
-static u32 ipc_wait(void)
+static u32
+ipc_wait(void)
 {
 	u32 ret;
 	while(!((ret = ipc_read(1)) & 0x6))
@@ -106,7 +117,8 @@ struct ipc {
 
 static struct ipc ipc ALIGNED(64);
 
-static void ipc_send_request(void)
+static void
+ipc_send_request(void)
 {
 	sync_after_write(&ipc, 0x40);
 
@@ -118,7 +130,8 @@ static void ipc_send_request(void)
 	ipc_bell(2);
 }
 
-static int ipc_send_twoack(void)
+static int
+ipc_send_twoack(void)
 {
 	sync_after_write(&ipc, 0x40);
 	ios_delay();
@@ -139,7 +152,8 @@ static int ipc_send_twoack(void)
 	return 1;
 }
 
-static void ipc_recv_reply(void)
+static void
+ipc_recv_reply(void)
 {
 	for (;;)
 	{
@@ -162,7 +176,37 @@ static void ipc_recv_reply(void)
 
 // High-level IPC access.
 
-int ios_open(const char *filename, u32 mode)
+void
+ios_cleanup()
+{
+	int loops = 0xA;
+	do
+	{
+		if ((ipc_read(1) & 0x22) == 0x22)
+		{
+			ipc_write(1, (ipc_read(1)&~0x30) | 2);
+		}
+		if ((ipc_read(1) & 0x14) == 0x14)
+		{
+			ipc_read(2);
+			ipc_write(1, (ipc_read(1)&~0x30) | 4);
+			ipc_write(12, 0x4000);
+			ipc_write(1, (ipc_read(1)&~0x30) | 8);
+		}
+		ipc_write(12, 0x4000);
+		usleep(1000);
+		loops--;
+	} while(loops != 0);
+
+	int fd;
+	for (fd = 0; fd != 31; fd++)
+	{
+		ios_close(fd);
+	}
+}
+
+int
+ios_open(const char *filename, u32 mode)
 {
 	sync_after_write((void*)filename, 0x20);
 
@@ -177,7 +221,20 @@ int ios_open(const char *filename, u32 mode)
 	return ipc.result;
 }
 
-static void ios_std(int fd, int cmd)
+int
+ios_close(int fd)
+{
+	ipc.cmd = 2;
+	ipc.fd = fd;
+
+	ipc_send_request();
+	ipc_recv_reply();
+
+	return ipc.result;
+}
+
+static void
+ios_std(int fd, int cmd)
 {
 	ipc.cmd = cmd;
 	ipc.fd = fd;
@@ -186,7 +243,8 @@ static void ios_std(int fd, int cmd)
 	ipc_recv_reply();
 }
 
-int ios_read(int fd, void *buf, u32 size)
+int
+ios_read(int fd, void *buf, u32 size)
 {
 	ipc.arg[0] = (u32)virt_to_phys(buf);
 	ipc.arg[1] = size;
@@ -198,7 +256,8 @@ int ios_read(int fd, void *buf, u32 size)
 	return ipc.result;
 }
 
-int _ios_ioctlv(int fd, u32 n, u32 in_count, u32 out_count, struct ioctlv *vec, int reboot)
+int
+_ios_ioctlv(int fd, u32 n, u32 in_count, u32 out_count, struct ioctlv *vec, int reboot)
 {
 	u32 i;
 
@@ -242,12 +301,15 @@ int _ios_ioctlv(int fd, u32 n, u32 in_count, u32 out_count, struct ioctlv *vec, 
 	return ipc.result;
 }
 
-int ios_ioctlv(int fd, u32 n, u32 in_count, u32 out_count, struct ioctlv *vec)
+int
+ios_ioctlv(int fd, u32 n, u32 in_count, u32 out_count, struct ioctlv *vec)
 {
 	return _ios_ioctlv(fd, n, in_count, out_count, vec, 0);
 }
 
-int ios_ioctlvreboot(int fd, u32 n, u32 in_count, u32 out_count, struct ioctlv *vec)
+int
+ios_ioctlvreboot(int fd, u32 n, u32 in_count, u32 out_count, struct ioctlv *vec)
 {
 	return _ios_ioctlv(fd, n, in_count, out_count, vec, 1);
 }
+

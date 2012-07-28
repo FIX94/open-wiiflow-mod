@@ -12,7 +12,6 @@
 
 #include "types.h"
 
-int strlen(const char *ptr);
-void udelay(u32 us);
+void usleep(u32 us);
 
 #endif
