@@ -108,12 +108,17 @@ void slot_autoload(int slot, int device)
       /* update CRC */
       brm_crc[0] = crc32(0, scd.bram, 0x2000);
     }
+    else 
+    {
+      /* force internal backup RAM format (does not use previous region backup RAM) */
+      scd.bram[0x1fff] = 0;
+    }
 
     /* check if internal backup RAM is correctly formatted */
     if (memcmp(scd.bram + 0x2000 - 0x20, brm_format + 0x20, 0x20))
     {
       /* clear internal backup RAM */
-      memset(scd.bram, 0x00, 0x200);
+      memset(scd.bram, 0x00, 0x2000 - 0x40);
 
       /* internal Backup RAM size fields */
       brm_format[0x10] = brm_format[0x12] = brm_format[0x14] = brm_format[0x16] = 0x00;
@@ -121,6 +126,9 @@ void slot_autoload(int slot, int device)
 
       /* format internal backup RAM */
       memcpy(scd.bram + 0x2000 - 0x40, brm_format, 0x40);
+
+      /* clear CRC to force file saving (in case previous region backup RAM was also formatted) */
+      brm_crc[0] = 0;
     }
 
     /* automatically load cartridge backup RAM (if enabled) */
@@ -129,7 +137,24 @@ void slot_autoload(int slot, int device)
       fp = fopen(CART_BRAM, "rb");
       if (fp != NULL)
       {
-        fread(scd.cartridge.area, scd.cartridge.mask + 1, 1, fp);
+        int filesize = scd.cartridge.mask + 1;
+        int done = 0;
+        
+        /* Read into buffer (2k blocks) */
+        while (filesize > CHUNKSIZE)
+        {
+          fread(scd.cartridge.area + done, CHUNKSIZE, 1, fp);
+          done += CHUNKSIZE;
+          filesize -= CHUNKSIZE;
+        }
+
+        /* Read remaining bytes */
+        if (filesize)
+        {
+          fread(scd.cartridge.area + done, filesize, 1, fp);
+        }
+
+        /* close file */
         fclose(fp);
 
         /* update CRC */
@@ -150,10 +175,14 @@ void slot_autoload(int slot, int device)
         memcpy(scd.cartridge.area + scd.cartridge.mask + 1 - 0x40, brm_format, 0x40);
       }
     }
+  }
 
+  /* configurable SRAM & State auto-saving */
+  if ((slot && !(config.s_auto & 2)) || (!slot && !(config.s_auto & 1)))
+  {
     return;
   }
-  
+
   if (strlen(rom_filename))
   {  
     SILENT = 1;
@@ -194,7 +223,24 @@ void slot_autosave(int slot, int device)
         FILE *fp = fopen(CART_BRAM, "wb");
         if (fp != NULL)
         {
-          fwrite(scd.cartridge.area, scd.cartridge.mask + 1, 1, fp);
+          int filesize = scd.cartridge.mask + 1;
+          int done = 0;
+        
+          /* Write to file (2k blocks) */
+          while (filesize > CHUNKSIZE)
+          {
+            fwrite(scd.cartridge.area + done, CHUNKSIZE, 1, fp);
+            done += CHUNKSIZE;
+            filesize -= CHUNKSIZE;
+          }
+
+          /* Write remaining bytes */
+          if (filesize)
+          {
+            fwrite(scd.cartridge.area + done, filesize, 1, fp);
+          }
+
+          /* Close file */
           fclose(fp);
 
           /* update CRC */
@@ -202,7 +248,11 @@ void slot_autosave(int slot, int device)
         }
       }
     }
+  }
 
+  /* configurable SRAM & State auto-saving */
+  if ((slot && !(config.s_auto & 2)) || (!slot && !(config.s_auto & 1)))
+  {
     return;
   }
 
@@ -354,13 +404,13 @@ int slot_load(int slot, int device)
   }
   else
   {
-    if (!sram.on || (system_hw == SYSTEM_MCD))
+    if (!sram.on)
     {
-      GUI_WaitPrompt("Error","SRAM is disabled !");
+      GUI_WaitPrompt("Error","Backup RAM is disabled !");
       return 0;
     }
 
-    GUI_MsgBoxOpen("Information","Loading SRAM ...",1);
+    GUI_MsgBoxOpen("Information","Loading Backup RAM ...",1);
   }
 
   /* Device Type */
@@ -553,20 +603,20 @@ int slot_save(int slot, int device)
   else
   {
     /* only save if SRAM is enabled */
-    if (!sram.on || (system_hw == SYSTEM_MCD))
+    if (!sram.on)
     {
-       GUI_WaitPrompt("Error","SRAM disabled !");
+       GUI_WaitPrompt("Error","Backup RAM disabled !");
        return 0;
     }
 
     /* only save if SRAM has been modified */
     if (crc32(0, &sram.sram[0], 0x10000) == sram.crc)
     {
-       GUI_WaitPrompt("Warning","SRAM not modified !");
+       GUI_WaitPrompt("Warning","Backup RAM not modified !");
        return 0;
     }
 
-    GUI_MsgBoxOpen("Information","Saving SRAM ...",1);
+    GUI_MsgBoxOpen("Information","Saving Backup RAM ...",1);
 
     /* allocate buffer */
     buffer = (u8 *)memalign(32, 0x10000);
@@ -621,6 +671,9 @@ int slot_save(int slot, int device)
     /* Close file */
     fclose(fp);
     free(buffer);
+
+    /* Close message box */
+    GUI_MsgBoxClose();
 
     /* Save state screenshot */
     if (slot > 0)
@@ -768,8 +821,10 @@ int slot_save(int slot, int device)
     CARD_Unmount(device);
     free(out);
     free(buffer);
+
+    /* Close message box */
+    GUI_MsgBoxClose();
   }
 
-  GUI_MsgBoxClose();
   return 1;
 }

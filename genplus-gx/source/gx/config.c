@@ -61,7 +61,7 @@ static int config_load(void)
     char version[16];
     fseek(fp, 0, SEEK_SET);
     fread(version, 16, 1, fp);
-    if (strncmp(version,CONFIG_VERSION,16))
+    if (memcmp(version,CONFIG_VERSION,16))
     {
       fclose(fp);
       return 0;
@@ -99,16 +99,15 @@ void config_default(void)
   config.psg_preamp     = 150;
   config.fm_preamp      = 100;
   config.hq_fm          = 1;
-  config.psgBoostNoise  = 0;
+  config.psgBoostNoise  = 1;
   config.filter         = 0;
-  config.lp_range       = 50;
+  config.lp_range       = 60;
   config.low_freq       = 880;
   config.high_freq      = 5000;
   config.lg             = 1.0;
   config.mg             = 1.0;
   config.hg             = 1.0;
-  config.rolloff        = 0.990;
-  config.dac_bits 		  = 14;
+  config.dac_bits       = 14;
   config.ym2413         = 2; /* AUTO */
 
   /* system options */
@@ -129,6 +128,7 @@ void config_default(void)
   config.yscale   = 0;
   config.aspect   = 1;
   config.overscan = 3; /* FULL */
+  config.gg_extra = 0;
   config.ntsc     = 0;
   config.vsync    = 1; /* AUTO */
 

@@ -1,4 +1,8 @@
+#ifdef __WIN32__
 #include <windows.h>
+#else
+#define MessageBox(owner, text, caption, type) printf("%s: %s\n", caption, text)
+#endif
 
 #include "SDL.h"
 #include "SDL_thread.h"
@@ -86,7 +90,7 @@ static int sdl_sound_init()
   }
 
   sdl_sound.current_emulated_samples = 0;
-  n = SOUND_SAMPLES_SIZE * 2 * sizeof(short) * 11;
+  n = SOUND_SAMPLES_SIZE * 2 * sizeof(short) * 20;
   sdl_sound.buffer = (char*)malloc(n);
   if(!sdl_sound.buffer) {
     MessageBox(NULL, "Can't allocate audio buffer", "Error", 0);
@@ -197,7 +201,8 @@ static void sdl_video_update()
     /* clear destination surface */
     SDL_FillRect(sdl_video.surf_screen, 0, 0);
 
-    /*if (config.render && (interlaced || config.ntsc))  rect.h *= 2;
+#if 0
+    if (config.render && (interlaced || config.ntsc))  rect.h *= 2;
     if (config.ntsc) rect.w = (reg[12]&1) ? MD_NTSC_OUT_WIDTH(rect.w) : SMS_NTSC_OUT_WIDTH(rect.w);
     if (config.ntsc)
     {
@@ -233,7 +238,8 @@ static void sdl_video_update()
         free(md_ntsc);
         md_ntsc = NULL;
       }
-    } */
+    }
+#endif
   }
 
   SDL_BlitSurface(sdl_video.surf_bitmap, &sdl_video.srect, sdl_video.surf_screen, &sdl_video.drect);
@@ -308,7 +314,6 @@ static int sdl_control_update(SDLKey keystate)
     {
       case SDLK_TAB:
       {
-        system_init();
         system_reset();
         break;
       }
@@ -369,8 +374,8 @@ static int sdl_control_update(SDLKey keystate)
         if (f)
         {
           uint8 buf[STATE_SIZE];
-          state_save(buf);
-          fwrite(&buf, STATE_SIZE, 1, f);
+          int len = state_save(buf);
+          fwrite(&buf, len, 1, f);
           fclose(f);
         }
         break;
@@ -427,9 +432,6 @@ static int sdl_control_update(SDLKey keystate)
               vc_max = vc_table[3][vdp_pal];
               break;
           }
-
-          /* reinitialize sound emulation */
-          sound_restore();
         }
         break;
       }
@@ -443,7 +445,7 @@ static int sdl_control_update(SDLKey keystate)
       case SDLK_F11:
       {
         config.overscan =  (config.overscan + 1) & 3;
-        if (system_hw == SYSTEM_GG)
+        if ((system_hw == SYSTEM_GG) && !config.gg_extra)
         {
           bitmap.viewport.x = (config.overscan & 2) ? 14 : -48;
         }
@@ -662,8 +664,6 @@ int sdl_input_update(void)
       break;
     }
   }
-
-  free (keystate);
   return 1;
 }
 
@@ -701,7 +701,7 @@ int main (int argc, char **argv)
     fclose(fp);
 
     /* check BOOT ROM */
-    if (!strncmp((char *)(boot_rom + 0x120),"GENESIS OS", 10))
+    if (!memcmp((char *)(boot_rom + 0x120),"GENESIS OS", 10))
     {
       /* mark Genesis BIOS as loaded */
       system_bios = SYSTEM_MD;
@@ -809,7 +809,8 @@ int main (int argc, char **argv)
       }
     }
   }
-  else
+
+  if (sram.on)
   {
     /* load SRAM */
     fp = fopen("./game.srm", "rb");
@@ -883,7 +884,8 @@ int main (int argc, char **argv)
       }
     }
   }
-  else
+
+  if (sram.on)
   {
     /* save SRAM */
     fp = fopen("./game.srm", "wb");
@@ -894,7 +896,6 @@ int main (int argc, char **argv)
     }
   }
 
-  system_shutdown();
   audio_shutdown();
   error_shutdown();
 

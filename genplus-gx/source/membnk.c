@@ -193,7 +193,7 @@ void zbank_write_ctrl_io(unsigned int address, unsigned int data)
 
     case 0x41:  /* OS ROM */
     {
-      if (address & 1)
+      if ((config.bios & 1) && (address & 1))
       {
         gen_bankswitch_w(data & 1);
         return;
@@ -294,7 +294,7 @@ void zbank_write_vdp(unsigned int address, unsigned int data)
     {
       if (address & 1)
       {
-        psg_write(Z80.cycles, data);
+        SN76489_Write(Z80.cycles, data);
         return;
       }
       zbank_unused_w(address, data);
