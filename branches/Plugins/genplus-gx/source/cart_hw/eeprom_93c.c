@@ -1,6 +1,6 @@
 /****************************************************************************
  *  Genesis Plus
- *  Microwire Serial EEPROM (93C46) support
+ *  Microwire Serial EEPROM (93C46 only) support
  *
  *  Copyright (C) 2011  Eke-Eke (Genesis Plus GX)
  *
@@ -37,55 +37,44 @@
  ****************************************************************************************/
 
 #include "shared.h"
-#include "gg_eeprom.h"
+#include "eeprom_93c.h"
 
+/* fixed board implementation */
 #define BIT_DATA (0)
 #define BIT_CLK  (1)
 #define BIT_CS   (2)
 
 
-T_EEPROM_93C gg_eeprom;
+T_EEPROM_93C eeprom_93c;
 
-void gg_eeprom_init()
+void eeprom_93c_init()
 {
   /* default eeprom state */
-  memset(&gg_eeprom, 0, sizeof(T_EEPROM_93C));
-  gg_eeprom.data = 1;
-  gg_eeprom.state = WAIT_START;
+  memset(&eeprom_93c, 0, sizeof(T_EEPROM_93C));
+  eeprom_93c.data = 1;
+  eeprom_93c.state = WAIT_START;
+  sram.custom = 3;
 }
 
-void gg_eeprom_ctrl(unsigned char data)
-{
-  /* Reset EEPROM */
-  if (data & 0x80)
-  {
-    gg_eeprom_init();
-    return;
-  }
-
-  /* Enable EEPROM */
-  gg_eeprom.enabled = data & 0x08;
-}
-
-void gg_eeprom_write(unsigned char data)
+void eeprom_93c_write(unsigned char data)
 {
   /* Make sure CS is HIGH */
   if (data & (1 << BIT_CS))
   {
     /* Data latched on CLK postive edge */
-    if ((data & (1 << BIT_CLK)) && !gg_eeprom.clk)
+    if ((data & (1 << BIT_CLK)) && !eeprom_93c.clk)
     {
       /* Current EEPROM state */
-      switch (gg_eeprom.state)
+      switch (eeprom_93c.state)
       {
         case WAIT_START:
         {
           /* Wait for START bit */
           if (data & (1 << BIT_DATA))
           {
-            gg_eeprom.opcode = 0;
-            gg_eeprom.cycles = 0;
-            gg_eeprom.state = GET_OPCODE;
+            eeprom_93c.opcode = 0;
+            eeprom_93c.cycles = 0;
+            eeprom_93c.state = GET_OPCODE;
           }
           break;
         }
@@ -93,82 +82,82 @@ void gg_eeprom_write(unsigned char data)
         case GET_OPCODE:
         {
           /* 8-bit buffer (opcode + address) */
-          gg_eeprom.opcode |= ((data >> BIT_DATA) & 1) << (7 - gg_eeprom.cycles);
-          gg_eeprom.cycles++;
+          eeprom_93c.opcode |= ((data >> BIT_DATA) & 1) << (7 - eeprom_93c.cycles);
+          eeprom_93c.cycles++;
 
-          if (gg_eeprom.cycles == 8)
+          if (eeprom_93c.cycles == 8)
           {
             /* Decode instruction */
-            switch ((gg_eeprom.opcode >> 6) & 3)
+            switch ((eeprom_93c.opcode >> 6) & 3)
             {
               case 1:
               {
                 /* WRITE */
-                gg_eeprom.buffer = 0;
-                gg_eeprom.cycles = 0;
-                gg_eeprom.state = WRITE_WORD;
+                eeprom_93c.buffer = 0;
+                eeprom_93c.cycles = 0;
+                eeprom_93c.state = WRITE_WORD;
                 break;
               }
 
               case 2:
               {
                 /* READ */
-                gg_eeprom.buffer = *(uint16 *)(sram.sram + ((gg_eeprom.opcode & 0x3F) << 1));
-                gg_eeprom.cycles = 0;
-                gg_eeprom.state = READ_WORD;
+                eeprom_93c.buffer = *(uint16 *)(sram.sram + ((eeprom_93c.opcode & 0x3F) << 1));
+                eeprom_93c.cycles = 0;
+                eeprom_93c.state = READ_WORD;
 
                 /* Force DATA OUT */
-                gg_eeprom.data = 0;
+                eeprom_93c.data = 0;
                 break;
               }
 
               case 3:
               {
                 /* ERASE */
-                if (gg_eeprom.we)
+                if (eeprom_93c.we)
                 {
-                  *(uint16 *)(sram.sram + ((gg_eeprom.opcode & 0x3F) << 1)) = 0xFFFF;
+                  *(uint16 *)(sram.sram + ((eeprom_93c.opcode & 0x3F) << 1)) = 0xFFFF;
                 }
 
                 /* wait for next command */
-                gg_eeprom.state = WAIT_STANDBY;
+                eeprom_93c.state = WAIT_STANDBY;
                 break;
               }
 
               default:
               {
                 /* special command */
-                switch ((gg_eeprom.opcode >> 4) & 3)
+                switch ((eeprom_93c.opcode >> 4) & 3)
                 {
                   case 1:
                   {
                     /* WRITE ALL */
-                    gg_eeprom.buffer = 0;
-                    gg_eeprom.cycles = 0;
-                    gg_eeprom.state = WRITE_WORD;
+                    eeprom_93c.buffer = 0;
+                    eeprom_93c.cycles = 0;
+                    eeprom_93c.state = WRITE_WORD;
                     break;
                   }
 
                   case 2:
                   {
                     /* ERASE ALL */
-                    if (gg_eeprom.we)
+                    if (eeprom_93c.we)
                     {
                       memset(sram.sram, 0xFF, 128);
                     }
 
                     /* wait for next command */
-                    gg_eeprom.state = WAIT_STANDBY;
+                    eeprom_93c.state = WAIT_STANDBY;
                     break;
                   }
 
                   default:
                   {
                     /* WRITE ENABLE/DISABLE */
-                    gg_eeprom.we = (gg_eeprom.opcode >> 4) & 1;
+                    eeprom_93c.we = (eeprom_93c.opcode >> 4) & 1;
 
                     /* wait for next command */
-                    gg_eeprom.state = WAIT_STANDBY;
+                    eeprom_93c.state = WAIT_STANDBY;
                     break;
                   }
                 }
@@ -182,18 +171,18 @@ void gg_eeprom_write(unsigned char data)
         case WRITE_WORD:
         {
           /* 16-bit data buffer */
-          gg_eeprom.buffer |= ((data >> BIT_DATA) & 1) << (15 - gg_eeprom.cycles);
-          gg_eeprom.cycles++;
+          eeprom_93c.buffer |= ((data >> BIT_DATA) & 1) << (15 - eeprom_93c.cycles);
+          eeprom_93c.cycles++;
 
-          if (gg_eeprom.cycles == 16)
+          if (eeprom_93c.cycles == 16)
           {
             /* check EEPROM write protection */
-            if (gg_eeprom.we)
+            if (eeprom_93c.we)
             {
-              if (gg_eeprom.opcode & 0x40)
+              if (eeprom_93c.opcode & 0x40)
               {
                 /* write one word */
-                *(uint16 *)(sram.sram + ((gg_eeprom.opcode & 0x3F) << 1)) = gg_eeprom.buffer;
+                *(uint16 *)(sram.sram + ((eeprom_93c.opcode & 0x3F) << 1)) = eeprom_93c.buffer;
               }
               else
               {
@@ -201,14 +190,14 @@ void gg_eeprom_write(unsigned char data)
                 int i;
                 for (i=0; i<64; i++)
                 {
-                  *(uint16 *)(sram.sram + (i << 1)) = gg_eeprom.buffer;
+                  *(uint16 *)(sram.sram + (i << 1)) = eeprom_93c.buffer;
 
                 }
               }
             }
 
             /* wait for next command */
-            gg_eeprom.state = WAIT_STANDBY;
+            eeprom_93c.state = WAIT_STANDBY;
           }
           break;
         }
@@ -216,15 +205,15 @@ void gg_eeprom_write(unsigned char data)
         case READ_WORD:
         {
           /* set DATA OUT */
-          gg_eeprom.data = ((gg_eeprom.buffer >> (15 - gg_eeprom.cycles)) & 1);
-          gg_eeprom.cycles++;
+          eeprom_93c.data = ((eeprom_93c.buffer >> (15 - eeprom_93c.cycles)) & 1);
+          eeprom_93c.cycles++;
 
-          if (gg_eeprom.cycles == 16)
+          if (eeprom_93c.cycles == 16)
           {
             /* read next word (93C46B) */
-            gg_eeprom.opcode++;
-            gg_eeprom.cycles = 0;
-            gg_eeprom.buffer = *(uint16 *)(sram.sram + ((gg_eeprom.opcode & 0x3F) << 1));
+            eeprom_93c.opcode++;
+            eeprom_93c.cycles = 0;
+            eeprom_93c.buffer = *(uint16 *)(sram.sram + ((eeprom_93c.opcode & 0x3F) << 1));
           }
           break;
         }
@@ -240,21 +229,21 @@ void gg_eeprom_write(unsigned char data)
   else
   {
     /* CS HIGH->LOW transition */
-    if (gg_eeprom.cs)
+    if (eeprom_93c.cs)
     {
       /* standby mode */
-      gg_eeprom.data = 1;
-      gg_eeprom.state = WAIT_START;
+      eeprom_93c.data = 1;
+      eeprom_93c.state = WAIT_START;
     }
   }
 
   /* Update input lines */
-  gg_eeprom.cs  = (data >> BIT_CS) & 1;
-  gg_eeprom.clk = (data >> BIT_CLK) & 1;
+  eeprom_93c.cs  = (data >> BIT_CS) & 1;
+  eeprom_93c.clk = (data >> BIT_CLK) & 1;
 }
 
-unsigned char gg_eeprom_read(void)
+unsigned char eeprom_93c_read(void)
 {
-  return ((gg_eeprom.cs << BIT_CS) | (gg_eeprom.data << BIT_DATA) | (1 << BIT_CLK));
+  return ((eeprom_93c.cs << BIT_CS) | (eeprom_93c.data << BIT_DATA) | (1 << BIT_CLK));
 }
 

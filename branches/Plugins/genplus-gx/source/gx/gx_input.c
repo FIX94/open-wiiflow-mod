@@ -1216,10 +1216,10 @@ void gx_input_SetDefault(void)
 #ifdef HW_RVL
   for (i=0; i<4; i++)
   {
-    /* Wiimote */
+    /* Wiimote (horizontal) */
     config.wpad_keymap[i*3 + WPAD_EXP_NONE][KEY_BUTTONA] = WPAD_BUTTON_A;
-    config.wpad_keymap[i*3 + WPAD_EXP_NONE][KEY_BUTTONB] = WPAD_BUTTON_2;
-    config.wpad_keymap[i*3 + WPAD_EXP_NONE][KEY_BUTTONC] = WPAD_BUTTON_1;
+    config.wpad_keymap[i*3 + WPAD_EXP_NONE][KEY_BUTTONB] = WPAD_BUTTON_1;
+    config.wpad_keymap[i*3 + WPAD_EXP_NONE][KEY_BUTTONC] = WPAD_BUTTON_2;
     config.wpad_keymap[i*3 + WPAD_EXP_NONE][KEY_START]   = WPAD_BUTTON_PLUS;
     config.wpad_keymap[i*3 + WPAD_EXP_NONE][KEY_BUTTONX] = 0;
     config.wpad_keymap[i*3 + WPAD_EXP_NONE][KEY_BUTTONY] = 0;
@@ -1228,8 +1228,8 @@ void gx_input_SetDefault(void)
 
     /* Wiimote + Nunchuk */
     config.wpad_keymap[i*3 + WPAD_EXP_NUNCHUK][KEY_BUTTONA] = WPAD_NUNCHUK_BUTTON_Z;
-    config.wpad_keymap[i*3 + WPAD_EXP_NUNCHUK][KEY_BUTTONB] = WPAD_BUTTON_A;
-    config.wpad_keymap[i*3 + WPAD_EXP_NUNCHUK][KEY_BUTTONC] = WPAD_BUTTON_B;
+    config.wpad_keymap[i*3 + WPAD_EXP_NUNCHUK][KEY_BUTTONB] = WPAD_BUTTON_B;
+    config.wpad_keymap[i*3 + WPAD_EXP_NUNCHUK][KEY_BUTTONC] = WPAD_BUTTON_A;
     config.wpad_keymap[i*3 + WPAD_EXP_NUNCHUK][KEY_START]   = WPAD_BUTTON_PLUS;
     config.wpad_keymap[i*3 + WPAD_EXP_NUNCHUK][KEY_BUTTONX] = WPAD_NUNCHUK_BUTTON_C;
     config.wpad_keymap[i*3 + WPAD_EXP_NUNCHUK][KEY_BUTTONY] = WPAD_BUTTON_1;
@@ -1242,8 +1242,8 @@ void gx_input_SetDefault(void)
     config.wpad_keymap[i*3 + WPAD_EXP_CLASSIC][KEY_BUTTONC] = WPAD_CLASSIC_BUTTON_A;
     config.wpad_keymap[i*3 + WPAD_EXP_CLASSIC][KEY_START]   = WPAD_CLASSIC_BUTTON_PLUS;
     config.wpad_keymap[i*3 + WPAD_EXP_CLASSIC][KEY_BUTTONX] = WPAD_CLASSIC_BUTTON_ZL;
-    config.wpad_keymap[i*3 + WPAD_EXP_CLASSIC][KEY_BUTTONY] = WPAD_CLASSIC_BUTTON_X;
-    config.wpad_keymap[i*3 + WPAD_EXP_CLASSIC][KEY_BUTTONZ] = WPAD_CLASSIC_BUTTON_ZR;
+    config.wpad_keymap[i*3 + WPAD_EXP_CLASSIC][KEY_BUTTONY] = WPAD_CLASSIC_BUTTON_ZR;
+    config.wpad_keymap[i*3 + WPAD_EXP_CLASSIC][KEY_BUTTONZ] = WPAD_CLASSIC_BUTTON_X;
     config.wpad_keymap[i*3 + WPAD_EXP_CLASSIC][KEY_MODE]    = WPAD_CLASSIC_BUTTON_MINUS;
   }
 #endif
@@ -1594,8 +1594,6 @@ void gx_input_UpdateMenu(void)
     else if (pw & WPAD_BUTTON_DOWN)  pp |= PAD_BUTTON_DOWN;
     else if (pw & WPAD_BUTTON_LEFT)  pp |= PAD_BUTTON_LEFT;
     else if (pw & WPAD_BUTTON_RIGHT) pp |= PAD_BUTTON_RIGHT;
-    if (pw & WPAD_BUTTON_MINUS)      pp |= PAD_TRIGGER_L;
-    if (pw & WPAD_BUTTON_PLUS)       pp |= PAD_TRIGGER_R;
   }
   else
   {
@@ -1604,8 +1602,6 @@ void gx_input_UpdateMenu(void)
     else if (pw & WPAD_BUTTON_DOWN)  pp |= PAD_BUTTON_RIGHT;
     else if (pw & WPAD_BUTTON_LEFT)  pp |= PAD_BUTTON_DOWN;
     else if (pw & WPAD_BUTTON_RIGHT) pp |= PAD_BUTTON_UP;
-    if (pw & WPAD_BUTTON_MINUS)      pp |= PAD_TRIGGER_R;
-    if (pw & WPAD_BUTTON_PLUS)       pp |= PAD_TRIGGER_L;
   }
 
   /* Classic Controller direction keys */
@@ -1620,6 +1616,8 @@ void gx_input_UpdateMenu(void)
   if (pw & WPAD_BUTTON_2)               pp |= PAD_BUTTON_A;
   if (pw & WPAD_BUTTON_1)               pp |= PAD_BUTTON_B;
   if (pw & WPAD_BUTTON_HOME)            pp |= PAD_TRIGGER_Z;
+  if (pw & WPAD_BUTTON_PLUS)            pp |= PAD_TRIGGER_L;
+  if (pw & WPAD_BUTTON_MINUS)           pp |= PAD_TRIGGER_R;
   if (pw & WPAD_CLASSIC_BUTTON_FULL_L)  pp |= PAD_TRIGGER_L;
   if (pw & WPAD_CLASSIC_BUTTON_FULL_R)  pp |= PAD_TRIGGER_R;
   if (pw & WPAD_CLASSIC_BUTTON_A)       pp |= PAD_BUTTON_A;

@@ -42,6 +42,8 @@
 #ifndef _SYSTEM_H_
 #define _SYSTEM_H_
 
+#include "blip_buf.h"
+
 /* Supported hardware models */
 #define SYSTEM_SG         0x10
 #define SYSTEM_MARKIII    0x11
@@ -85,25 +87,10 @@ typedef struct
 
 typedef struct
 {
-  int sample_rate;    /* Output Sample rate (8000-48000) */
-  double frame_rate;  /* Output Frame rate (usually 50 or 60 frames per second) */
-  int enabled;        /* 1= sound emulation is enabled */
-  int buffer_size;    /* Size of sound buffer (in bytes) */
-  struct
-  {
-    int32 *pos;
-    int32 *buffer;
-  } fm;
-  struct
-  {
-    int16 *pos;
-    int16 *buffer;
-  } psg;
-  struct
-  {
-    int16 *pos;
-    int16 *buffer;
-  } pcm;
+  int sample_rate;      /* Output Sample rate (8000-48000) */
+  double frame_rate;    /* Output Frame rate (usually 50 or 60 frames per second) */
+  int enabled;          /* 1= sound emulation is enabled */
+  blip_t* blips[3][2];  /* Blip Buffer resampling */
 } t_snd;
 
 
@@ -116,10 +103,6 @@ extern uint8 system_hw;
 extern uint8 system_bios;
 extern uint32 system_clock;
 
-char 	Exit_Dol_File[1024]; // Exit Path
-char 	LoaderName[20]; // Menu Loader Name
-uint32	Exit_Channel[2]; // Exit Channel
-
 /* Function prototypes */
 extern int audio_init(int samplerate, double framerate);
 extern void audio_reset(void);
@@ -128,7 +111,6 @@ extern int audio_update(int16 *buffer);
 extern void audio_set_equalizer(void);
 extern void system_init(void);
 extern void system_reset(void);
-extern void system_shutdown(void);
 extern void system_frame_gen(int do_skip);
 extern void system_frame_scd(int do_skip);
 extern void system_frame_sms(int do_skip);

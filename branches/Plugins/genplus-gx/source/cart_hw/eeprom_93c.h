@@ -1,6 +1,6 @@
 /****************************************************************************
  *  Genesis Plus
- *  Microwire Serial EEPROM (93C46) support
+ *  Microwire Serial EEPROM (93C46 only) support
  *
  *  Copyright (C) 2011  Eke-Eke (Genesis Plus GX)
  *
@@ -36,8 +36,8 @@
  *
  ****************************************************************************************/
 
-#ifndef _GG_EEPROM_H_
-#define _GG_EEPROM_H_
+#ifndef _EEPROM_93C_H_
+#define _EEPROM_93C_H_
 
 typedef enum
 {
@@ -46,8 +46,7 @@ typedef enum
   GET_OPCODE,
   WRITE_WORD,
   READ_WORD
-
-} T_STATE;
+} T_STATE_93C;
 
 typedef struct
 {
@@ -59,17 +58,15 @@ typedef struct
   uint8 we;       /* 1: write enabled */
   uint8 opcode;   /* 8-bit opcode + address */
   uint16 buffer;  /* 16-bit data buffer */
-  T_STATE state; /* current operation state */
-
+  T_STATE_93C state; /* current operation state */
 } T_EEPROM_93C;
 
 /* global variables */
-extern T_EEPROM_93C gg_eeprom;
+extern T_EEPROM_93C eeprom_93c;
 
 /* Function prototypes */
-extern void gg_eeprom_init();
-extern void gg_eeprom_ctrl(unsigned char data);
-extern void gg_eeprom_write(unsigned char data);
-extern unsigned char gg_eeprom_read(void);
+extern void eeprom_93c_init();
+extern void eeprom_93c_write(unsigned char data);
+extern unsigned char eeprom_93c_read(void);
 
 #endif

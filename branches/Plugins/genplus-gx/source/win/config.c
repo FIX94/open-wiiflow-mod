@@ -12,15 +12,14 @@ void set_config_defaults(void)
   config.psg_preamp     = 150;
   config.fm_preamp      = 100;
   config.hq_fm          = 1;
-  config.psgBoostNoise  = 0;
-  config.filter         = 1;
+  config.psgBoostNoise  = 1;
+  config.filter         = 0;
   config.low_freq       = 200;
   config.high_freq      = 8000;
   config.lg             = 1.0;
   config.mg             = 1.0;
   config.hg             = 1.0;
   config.lp_range       = 60;
-  config.rolloff        = 0.995;
   config.dac_bits       = 14;
   config.ym2413         = 2; /* = AUTO (0 = always OFF, 1 = always ON) */
 
@@ -35,7 +34,8 @@ void set_config_defaults(void)
   config.lock_on        = 0; /* = OFF (can be TYPE_SK, TYPE_GG & TYPE_AR) */
 
   /* display options */
-  config.overscan = 3;       /* = both ON (0 = no borders , 1 = vertical borders only, 2 = horizontal borders only) */
+  config.overscan = 0;       /* 3 = all borders (0 = no borders , 1 = vertical borders only, 2 = horizontal borders only) */
+  config.gg_extra = 0;       /* 1 = show extended Game Gear screen (256x192) */
   config.render   = 0;       /* 1 = double resolution output (only when interlaced mode 2 is enabled) */
 
   /* controllers options */
