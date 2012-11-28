@@ -35,6 +35,7 @@
 #include "../PsxCommon.h"
 #include "wiiSXconfig.h"
 #include "menu/MenuContext.h"
+#include "gecko.h"
 extern "C" {
 #include "DEBUG.h"
 #include "fileBrowser/fileBrowser.h"
@@ -350,6 +351,7 @@ int main(int argc, char *argv[])
 		IOS_ReloadIOS(58);
 
 	DI_Init();    // first
+	InitGecko();
 
 	if(argc > 2 && argv[1] != NULL && argv[2] != NULL)
 	{
@@ -358,8 +360,11 @@ int main(int argc, char *argv[])
 		strncpy(AutobootROM, argv[2], sizeof(AutobootROM));
 	}
 	else
+	{
 		Autoboot = false;
-
+		memset(AutobootPath, 0, sizeof(AutobootPath));
+		memset(AutobootROM, 0, sizeof(AutobootROM));
+	}
 	loadSettings(argc, argv);
 	MenuContext *menu = new MenuContext(vmode);
 	VIDEO_SetPostRetraceCallback (ScanPADSandReset);
@@ -383,6 +388,8 @@ int main(int argc, char *argv[])
 #endif
 	if(Autoboot)
 	{
+		if(strncasecmp(AutobootPath, "ntfs:/", 6) == 0)
+			fileBrowser_libntfs_Mount();
 		menu->Autoboot();
 		Autoboot = false;
 	}

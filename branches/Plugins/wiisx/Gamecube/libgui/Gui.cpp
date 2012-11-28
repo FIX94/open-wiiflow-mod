@@ -28,6 +28,8 @@
 #include "GuiResources.h"
 
 extern "C" {
+#include "../fileBrowser/fileBrowser.h"
+#include "../fileBrowser/fileBrowser-libfat.h"
 #include "../gc_input/controller.h"
 #ifdef WII
 #include <di/di.h>
@@ -107,6 +109,9 @@ void Gui::draw()
 		
 		if(fade == 255)
 		{
+			/* UnMount our Partitions */
+			fileBrowser_UnMount();
+			/* Finish that stuff */
 			VIDEO_SetBlack(true);
 			VIDEO_Flush();
 		 	VIDEO_WaitVSync();

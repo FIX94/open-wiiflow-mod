@@ -24,6 +24,7 @@
 
 
 #include <fat.h>
+#include <ntfs.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -31,7 +32,7 @@
 #include "fileBrowser.h"
 #include <sdcard/gcsd.h>
 #include <string.h>
-
+#include "../gecko.h"
 extern BOOL hasLoadedROM;
 extern int stop;
 
@@ -439,3 +440,33 @@ int fileBrowser_libfatROM_readFile(fileBrowser_file* file, void* buffer, unsigne
 	return bytes_read;
 }
 
+#define CACHE 8
+#define SECTORS 64
+bool isMounted = false;
+bool fileBrowser_libntfs_Mount(void)
+{
+	sec_t *partitionList = NULL;
+	u32 partitions = ntfsFindPartitions(usb, &partitionList);
+	if(partitions > 0 && partitionList != NULL)
+	{
+		/* Open first partition as read-only for Autoboot */
+		isMounted = ntfsMount("ntfs", usb, partitionList[0], CACHE, SECTORS, NTFS_READ_ONLY | NTFS_RECOVER);
+		gprintf("NTFS Mounted: %d\n", isMounted);
+		free(partitionList);
+	}
+	return isMounted;
+}
+
+void fileBrowser_UnMount(void)
+{
+	gprintf("Unmount Partitions\n");
+	/* Unmount USB */
+	ntfsUnmount("ntfs:", true);
+	isMounted = false;
+	fatUnmount("usb:");
+	usb->shutdown();
+	USB_Deinitialize();
+	/* Unmount SD */
+	fatUnmount("sd:");
+	frontsd->shutdown();
+}
