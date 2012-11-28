@@ -44,6 +44,9 @@ int fileBrowser_libfat_deinit(fileBrowser_file* f);
 int fileBrowser_libfatROM_readFile(fileBrowser_file*, void*, unsigned int);
 int fileBrowser_libfatROM_deinit(fileBrowser_file* f);
 
+bool fileBrowser_libntfs_Mount(void);
+void fileBrowser_UnMount(void);
+
 void pauseRemovalThread();
 void continueRemovalThread();
 

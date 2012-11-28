@@ -528,8 +528,6 @@ void fileBrowserFrame_LoadFile(int i)
 		  }*/
 			menu::MessageBox::getInstance().setMessage(feedback_string);
 		}
-		else if(Autoboot)
-			autoSaveLoaded = NATIVESAVEDEVICE_NONE;
 		pMenuContext->setActiveFrame(MenuContext::FRAME_MAIN);
 		//if(hasLoadedISO) Func_SetPlayGame();
 		Func_SetPlayGame(); //hasLoadedISO will be set to False if SysInit() fails
