@@ -47,14 +47,17 @@
 #include "filesel.h"
 #include "cheats.h"
 #include "usbthread.h"
+#include "gecko.h"
 
 #include <fat.h>
+#include <ntfs.h>
 
 /* output samplerate, adjusted to take resampler precision in account */
 #define SAMPLERATE_48KHZ 47992
 
 u32 Shutdown = 0;
 u32 ConfigRequested = 1;
+char osd_version[32];
 
 #ifdef LOG_TIMING
 u64 prevtime;
@@ -173,11 +176,6 @@ static void run_emulation(void)
           /* clear flag */
           bitmap.viewport.changed &= ~4;
         }
-
-#ifdef HW_RVL
-        /* use Wii DVD light to simulate CD Drive access led */
-        *(u32*)0xcd0000c0 = (*(u32*)0xcd0000c0 & ~0x20) | ((scd.regs[0x06>>1].byte.h & 0x01) << 5);
-#endif
       }
     }
     else if ((system_hw & SYSTEM_PBC) == SYSTEM_MD)
@@ -248,11 +246,6 @@ static void run_emulation(void)
         }
       }
     }
-
-#ifdef HW_RVL
-    /* reset Wii DVD light */
-    *(u32*)0xcd0000c0 = (*(u32*)0xcd0000c0 & ~0x20);
-#endif
 
     /* stop video & audio */
     gx_audio_Stop();
@@ -424,6 +417,49 @@ void reloadrom(void)
   CheatLoad();
 }
 
+#ifdef HW_RVL
+/*******************************************
+  Device management for FAT/NTFS 
+********************************************/
+#include <sdcard/wiisd_io.h>
+#include <ogc/usbstorage.h>
+
+#define CACHE 8
+#define SECTORS 64
+
+const DISC_INTERFACE* frontsd = &__io_wiisd;
+const DISC_INTERFACE* usb = &__io_usbstorage;
+
+bool isMounted = false;
+static bool libntfs_Mount(void)
+{
+	sec_t *partitionList = NULL;
+	u32 partitions = ntfsFindPartitions(usb, &partitionList);
+	if(partitions > 0 && partitionList != NULL)
+	{
+		/* Open first partition as read-only for Autoboot */
+		isMounted = ntfsMount("ntfs", usb, partitionList[0], CACHE, SECTORS, NTFS_READ_ONLY | NTFS_RECOVER);
+		gprintf("NTFS Mounted: %d\n", isMounted);
+		free(partitionList);
+	}
+	return isMounted;
+}
+
+static void UnMount(void)
+{
+	gprintf("Unmount Partitions\n");
+	/* Unmount USB */
+	ntfsUnmount("ntfs:", true);
+	isMounted = false;
+	fatUnmount("usb:");
+	usb->shutdown();
+	USB_Deinitialize();
+	/* Unmount SD */
+	fatUnmount("sd:");
+	frontsd->shutdown();
+}
+#endif
+
 /**************************************************
   Shutdown everything properly
 ***************************************************/
@@ -444,6 +480,9 @@ void shutdown(void)
 #endif
   /* Kill our keep alive thread */
   KillUSBKeepAliveThread();
+
+  /* Unmount Devices */
+  UnMount();
 }
 
 /***************************************************************************
@@ -460,9 +499,14 @@ int main (int argc, char *argv[])
   DI_UseCache(0);
   DI_Init();
 
-  //Reload to IOS58 for USB
+  /* Reload to IOS58 for USB */
   if(IOS_GetVersion() != 58)
     IOS_ReloadIOS(58);
+  InitGecko();
+
+  sprintf(osd_version, "%s (IOS %d)", VERSION, IOS_GetVersion());
+#else
+  sprintf(osd_version, "%s (GCN)", VERSION);
 #endif
 
   /* initialize video engine */
@@ -598,18 +642,21 @@ int main (int argc, char *argv[])
 
   if(argc >= 3 && argv[1] != NULL && argv[2] != NULL)
     config.autoload = 1;
-
   /* auto-load last ROM file */
-  if(config.autoload)
+  if (config.autoload)
   {
     SILENT = 1;
     if(argv[1] != NULL)
+	{
 	  strncpy(history.entries[0].filepath, argv[1], sizeof(history.entries[0].filepath));
-    if(OpenDirectory(TYPE_RECENT, -1))
+      if(strncasecmp(argv[1], "ntfs:/", 6) == 0)
+        libntfs_Mount();
+	}
+    if (OpenDirectory(TYPE_RECENT, -1))
     {
 	  if(argv[2] != NULL)
 	    strncpy(filelist[0].filename, argv[2], sizeof(filelist[0].filename));
-      if(LoadFile(0))
+      if (LoadFile(0))
       {
         reloadrom();
         gx_video_Start();
