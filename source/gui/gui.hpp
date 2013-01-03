@@ -37,8 +37,8 @@ public:
 	s16 addPicButton(TexData &texNormal, TexData &texSelected, int x, int y, u32 width, u32 height,
 		GuiSound *clickSound = NULL, GuiSound *hoverSound = NULL);
 	s16 addProgressBar(int x, int y, u32 width, u32 height, SButtonTextureSet &texSet);
-	void setText(s16 id, const wstringEx &text, bool unwrap = false);
-	void setText(s16 id, const wstringEx &text, u32 startline, bool unwrap = false);
+	void setText(s16 id, const char *text, bool unwrap = false);
+	void setText(s16 id, const char *text, u32 startline, bool unwrap = false);
 	void setBtnTexture(s16 id, TexData &texNormal, TexData &texSelected);
 	void freeBtnTexture(s16 id);
 	void setTexture(s16 id ,TexData &bg);

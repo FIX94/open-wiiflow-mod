@@ -21,7 +21,7 @@ typedef struct _iosinfo_t {
 typedef struct _IOS_Info {
 	u32 Revision;
 	u32 SubRevision;
-	u8 Version;
+	u32 Version;
 	u8 Type;
 	u8 Base;
 } IOS_Info;
@@ -29,8 +29,8 @@ typedef struct _IOS_Info {
 extern IOS_Info CurrentIOS;
 void IOS_GetCurrentIOSInfo();
 
-bool IOS_D2X(u8 ios, u8 *base);
-u8 IOS_GetType(u8 slot);
+bool IOS_D2X(u32 ios, u8 *base);
+u8 IOS_GetType(u32 slot);
 
 s32 D2X_PatchReturnTo(u32 returnTo);
 

@@ -28,7 +28,7 @@ class Musicplayer
 {
 public:
 	void Cleanup();
-	void Init(Config &cfg, const string& musicDir, const string& themeMusicDir);
+	void Init();
 	void Tick(bool attenuate);
 
 	void SetVolume(u8 volume);

@@ -474,8 +474,10 @@ s16 CButtonsMgr::addPicButton(const u8 *pngNormal, const u8 *pngSelected, int x,
 	return addButton(SFont(), wstringEx(), x, y, width, height, CColor(), texSet, clickSound, hoverSound);
 }
 
-void CButtonsMgr::setText(s16 id, const wstringEx &text, bool unwrap)
+void CButtonsMgr::setText(s16 id, const char *t, bool unwrap)
 {
+	wstringEx text;
+	text.fromUTF8(t);
 	if (id == -1) return;
 	if (id < (s32)m_elts.size())
 	{
@@ -499,8 +501,10 @@ void CButtonsMgr::setText(s16 id, const wstringEx &text, bool unwrap)
 	}
 }
 
-void CButtonsMgr::setText(s16 id, const wstringEx &text, u32 startline,bool unwrap)
+void CButtonsMgr::setText(s16 id, const char *t, u32 startline,bool unwrap)
 {
+	wstringEx text;
+	text.fromUTF8(t);
 	if (id == -1) return;
 	if (id < (s32)m_elts.size())
 	{

@@ -18,7 +18,6 @@
 #include <algorithm>
 #include "MusicPlayer.hpp"
 #include "SoundHandler.hpp"
-#include "list/ListGenerator.hpp"
 #include "gui/text.hpp"
 #include "gecko/gecko.hpp"
 
@@ -38,30 +37,11 @@ void Musicplayer::Cleanup()
 	FileNames.clear();
 }
 
-static inline void FileNameAdder(char *Path)
-{
-	/* No need for more checks */
-	FileNames.push_back(Path);
-}
-
-void Musicplayer::Init(Config &cfg, const string& musicDir, const string& themeMusicDir) 
+void Musicplayer::Init() 
 {
 	Cleanup();
-	FadeRate = cfg.getInt("GENERAL", "music_fade_rate", 8);
-	Volume = cfg.getInt("GENERAL", "sound_volume_music", 255);
-
 	SetVolume(0);
 	MusicFile.SetVoice(0);
-
-	vector<string> Types = stringToVector(".mp3|.ogg", '|');
-	GetFiles(musicDir.c_str(), Types, FileNameAdder, false, MUSIC_DEPTH);
-	GetFiles(themeMusicDir.c_str(), Types, FileNameAdder, false, MUSIC_DEPTH);
-	if(cfg.getBool("GENERAL", "randomize_music", true) && FileNames.size() > 0)
-	{
-		srand(unsigned(time(NULL)));
-		random_shuffle(FileNames.begin(), FileNames.end());
-	}
-	CurrentFileName = FileNames.begin();
 }
 
 void Musicplayer::SetMaxVolume(u8 volume)

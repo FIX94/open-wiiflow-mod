@@ -40,12 +40,11 @@
 #include "fileOps/fileOps.h"
 #include "gecko/gecko.hpp"
 #include "gui/text.hpp"
-#include "loader/alt_ios.h"
 #include "loader/cios.h"
 #include "loader/fs.h"
 #include "loader/sys.h"
-#include "loader/wbfs.h"
 #include "memory/memory.h"
+#include "memory/mem2.hpp"
 #include "wiiuse/wpad.h"
 
 u8 *confbuffer ATTRIBUTE_ALIGN(32);
@@ -81,10 +80,7 @@ void Nand::Init()
 bool Nand::LoadDefaultIOS(void)
 {
 	Patch_AHB();
-	s32 ret = __IOS_LoadStartupIOS();
-	loadIOS(IOS_GetVersion(), false);
-	Init_ISFS();
-	return (ret == 0);
+	return (__IOS_LoadStartupIOS() == 0);
 }
 
 void Nand::SetNANDEmu(u32 partition)
@@ -807,50 +803,6 @@ void Nand::CreatePath(const char *path, ...)
 	va_end(args);
 }
 
-void Nand::CreateTitleTMD(dir_discHdr *hdr)
-{
-	wbfs_disc_t *disc = WBFS_OpenDisc((u8 *)&hdr->id, (char *)hdr->path);
-	if(!disc) 
-		return;
-
-	u8 *titleTMD = NULL;
-	u32 tmd_size = wbfs_extract_file(disc, (char*)"TMD", (void**)&titleTMD);
-	WBFS_CloseDisc(disc);
-
-	if(titleTMD == NULL) 
-		return;
-
-	u32 highTID = *(u32*)(titleTMD+0x18c);
-	u32 lowTID = *(u32*)(titleTMD+0x190);
-
-	CreatePath("%s/title/%08x/%08x/data", FullNANDPath, highTID, lowTID);
-	CreatePath("%s/title/%08x/%08x/content", FullNANDPath, highTID, lowTID);
-
-	char nandpath[MAX_FAT_PATH];
-	snprintf(nandpath, sizeof(nandpath), "%s/title/%08x/%08x/content/title.tmd", FullNANDPath, highTID, lowTID);
-
-	struct stat filestat;
-	if(stat(nandpath, &filestat) == 0)
-	{
-		free(titleTMD);
-		gprintf("%s Exists!\n", nandpath);
-		return;
-	}
-	gprintf("Creating title TMD: %s\n", nandpath);
-
-	FILE *file = fopen(nandpath, "wb");
-	if(file)
-	{
-		fwrite(titleTMD, 1, tmd_size, file);
-		gprintf("Title TMD written to: %s\n", nandpath);
-		fclose(file);
-	}
-	else 
-		gprintf("Creating title TMD: %s failed (%i)\n", nandpath, file);
-
-	free(titleTMD);
-}
-
 s32 Nand::FlashToNAND(const char *source, const char *dest, dump_callback_t i_dumper, void *i_data)
 {	
 	ISFS_CreateDir(dest, 0, 3, 3, 3);
@@ -1038,28 +990,21 @@ s32 Nand::Do_Region_Change(string id)
 	return 1;
 }
 
-void Nand::Init_ISFS()
+void Nand::Init_ISFS(bool iosOK)
 {
-	if(IOS_GetVersion() < 222)
+	if(iosOK)
 	{
-		Patch_ISFS_Permission(true);
-		AccessPatched = true;
+		PatchIOS(true);
+		usleep(1000);
 	}
-	usleep(1000);
 	gprintf("Init ISFS\n");
 	ISFS_Initialize();
 }
 
-void Nand::DeInit_ISFS(bool KeepPatches)
+void Nand::DeInit_ISFS()
 {
 	gprintf("Deinit ISFS\n");
 	ISFS_Deinitialize();
-	usleep(1000);
-	if(AccessPatched && !KeepPatches)
-	{
-		Patch_ISFS_Permission(false);
-		AccessPatched = false;
-	}
 }
 
 /* Thanks to postloader for that patch */

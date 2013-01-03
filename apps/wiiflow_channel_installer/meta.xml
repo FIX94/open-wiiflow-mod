@@ -1,0 +1,9 @@
+﻿<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<app version="1.0">
+  <name> WiiFlow Channel Installer</name>
+  <coder>FIX94</coder>
+  <version>1.0</version>
+  <release_date>3.1.2013</release_date>
+  <short_description>Installs the WiiFlow Forwarders</short_description>
+  <no_ios_reload/>
+</app>

@@ -31,8 +31,8 @@
 #include "MusicPlayer.hpp"
 #include "WavDecoder.hpp"
 #include "loader/sys.h"
-#include "banner/AnimatedBanner.h"
 #include "memory/mem2.hpp"
+#include "gecko/gecko.hpp"
 
 #define MAX_SND_VOICES	16
 

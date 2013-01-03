@@ -29,18 +29,16 @@
 #include <stdio.h>
 
 #include "cios.h"
-#include "alt_ios.h"
 #include "utils.h"
 #include "sys.h"
 #include "nk.h"
 #include "fs.h"
-#include "mload.h"
 #include "gecko/gecko.hpp"
 #include "memory/mem2.hpp"
 
 int mainIOS = 0;
 IOS_Info CurrentIOS;
-signed_blob *GetTMD(u8 ios, u32 *TMD_Length)
+static signed_blob *GetTMD(u32 ios, u32 *TMD_Length)
 {
 	if(ES_GetStoredTMDSize(TITLE_ID(1, ios), TMD_Length) < 0)
 		return NULL;
@@ -61,7 +59,7 @@ signed_blob *GetTMD(u8 ios, u32 *TMD_Length)
  * @return pointer to iosinfo_t on success else NULL. The user is responsible for freeing the buffer.
  */
 
-iosinfo_t *IOS_GetInfo(u8 ios)
+iosinfo_t *IOS_GetInfo(u32 ios)
 {
 	u32 TMD_Length;
 	signed_blob *TMD = GetTMD(ios, &TMD_Length);
@@ -96,7 +94,7 @@ u32 Title_GetSize_FromTMD(tmd *tmd_data)
 }
 
 /* Check if the cIOS is a D2X. */
-bool IOS_D2X(u8 ios, u8 *base)
+bool IOS_D2X(u32 ios, u8 *base)
 {
 	iosinfo_t *info = IOS_GetInfo(ios);
 	if(!info)
@@ -116,10 +114,10 @@ bool IOS_D2X(u8 ios, u8 *base)
 	return true;
 }
 
-u8 IOS_GetType(u8 slot)
+u8 IOS_GetType(u32 slot)
 {
 	/* No more checks needed */
-	if(neek2o() || Sys_DolphinMode())
+	if(neek2o())
 		return IOS_TYPE_NEEK2O;
 
 	/* Lets do this */
@@ -129,7 +127,7 @@ u8 IOS_GetType(u8 slot)
 		return IOS_TYPE_STUB;
 
 	tmd *iosTMD = (tmd*)SIGNATURE_PAYLOAD(TMD_Buffer);
-	if(Title_GetSize_FromTMD(iosTMD) < 0x100000 || iosTMD->title_version == 65280)
+	if(Title_GetSize_FromTMD(iosTMD) < 0x32000 || iosTMD->title_version == 65280)
 	{
 		MEM2_free(TMD_Buffer);
 		return IOS_TYPE_STUB;
@@ -148,17 +146,6 @@ u8 IOS_GetType(u8 slot)
 				return IOS_TYPE_KWIIRK;
 			else
 				return IOS_TYPE_HERMES;
-		case 245:
-		case 246:
-		case 247:
-		case 248:
-		case 249:
-		case 250:
-		case 251:
-			if(IOS_D2X(slot, &base))
-				return IOS_TYPE_D2X;
-			else
-				return IOS_TYPE_WANIN;
 		default:
 			if(IOS_D2X(slot, &base))
 				return IOS_TYPE_D2X;
@@ -175,35 +162,7 @@ void IOS_GetCurrentIOSInfo()
 	CurrentIOS.Revision = IOS_GetRevision();
 	CurrentIOS.SubRevision = 0;
 	CurrentIOS.Type = IOS_GetType(CurrentIOS.Version);
-	if(CurrentIOS.Type == IOS_TYPE_D2X)
-	{
-		iosinfo_t *iosInfo = IOS_GetInfo(CurrentIOS.Version);
-		CurrentIOS.Revision = iosInfo->version;
-		CurrentIOS.Base = iosInfo->baseios;
-		gprintf("D2X IOS%i[%i] v%i\n", CurrentIOS.Version, CurrentIOS.Base, 
-			CurrentIOS.Revision);
-		MEM2_free(iosInfo);
-	}
-	else if(CurrentIOS.Type == IOS_TYPE_WANIN)
-	{
-		if(CurrentIOS.Revision >= 18)
-			CurrentIOS.Base = wanin_mload_get_IOS_base();
-		gprintf("Waninkoko IOS%i[%i] v%i\n", CurrentIOS.Version, CurrentIOS.Base, 
-			CurrentIOS.Revision);
-	}
-	else if(CurrentIOS.Type == IOS_TYPE_HERMES)
-	{
-		CurrentIOS.Base = mload_get_IOS_base();
-		if(CurrentIOS.Revision > 4)
-		{
-			CurrentIOS.Revision = mload_get_version() >> 4;
-			CurrentIOS.SubRevision = mload_get_version() & 0xF;
-		}
-		gprintf("Hermes IOS%i[%i] v%d.%d\n", CurrentIOS.Version, CurrentIOS.Base, 
-			CurrentIOS.Revision, CurrentIOS.SubRevision);
-	}
-	else
-		gprintf("IOS%i v%i\n", CurrentIOS.Version, CurrentIOS.Revision);
+	gprintf("IOS%i v%i\n", CurrentIOS.Version, CurrentIOS.Revision);
 	DCFlushRange(&CurrentIOS, sizeof(IOS_Info));
 }
 

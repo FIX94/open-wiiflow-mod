@@ -9,9 +9,7 @@
 
 #include "sha1.h"
 #include "fs.h"
-#include "mload.h"
 #include "sys.h"
-#include "channel/channel_launcher.h"
 #include "loader/nk.h"
 #include "gecko/gecko.hpp"
 #include "memory/mem2.hpp"
@@ -59,62 +57,24 @@ bool Sys_Exiting(void)
 {
 	DCFlushRange(&reset, 32);
 	DCFlushRange(&shutdown, 32);
-	return reset || shutdown;
-}
-
-int Sys_GetExitTo(void)
-{
-	return ExitOption;
-}
-void Sys_ExitTo(int option)
-{
-	ExitOption = option;
-	//magic word to force wii menu in priiloader.
-	if(ExitOption == EXIT_TO_MENU)
-	{
-		*Priiloader_CFG1 = 0x50756E65;
-		*Priiloader_CFG2 = 0x50756E65;
-	}
-	else if(ExitOption == EXIT_TO_PRIILOADER)
-	{
-		*Priiloader_CFG1 = 0x4461636F;
-		*Priiloader_CFG2 = 0x4461636F;
-	}
-	else
-	{
-		*Priiloader_CFG1 = 0xFFFFFFFF;
-		*Priiloader_CFG2 = 0xFFFFFFFF;
-	}
-	DCFlushRange((void*)Priiloader_CFG1, 4);
-	DCFlushRange((void*)Priiloader_CFG2, 4);
+	if(reset || shutdown)
+		ExitOption = BUTTON_CALLBACK;
+	return (reset || shutdown);
 }
 
 void Sys_Exit(void)
 {
-	if(ExitOption == EXIT_TO_DISABLE)
-		return;
-
 	/* Shutdown Inputs */
 	Close_Inputs();
 	/* Just shutdown  console*/
 	if(ExitOption == BUTTON_CALLBACK)
 		SYS_ResetSystem(SYS_POWEROFF_STANDBY, 0, 0);
-
 	/* We wanna to boot sth */
 	WII_Initialize();
-	if(ExitOption == EXIT_TO_WFNK2O)
-		Launch_nk(0x1000144574641LL, NeekPath, 0);
-	else if(ExitOption == EXIT_TO_SMNK2O)
-		Launch_nk(0, NeekPath, 0);
-	else if(ExitOption == EXIT_TO_BOOTMII)
-		IOS_ReloadIOS(0xfe);
-	else if(ExitOption == EXIT_TO_HBC)
-	{
-		WII_LaunchTitle(HBC_LULZ);
-		WII_LaunchTitle(HBC_108);
-		WII_LaunchTitle(HBC_JODI);
-		WII_LaunchTitle(HBC_HAXX);
-	}
+	WII_LaunchTitle(HBC_LULZ);
+	WII_LaunchTitle(HBC_108);
+	WII_LaunchTitle(HBC_JODI);
+	WII_LaunchTitle(HBC_HAXX);
 	/* else Return to Menu */
 	SYS_ResetSystem(SYS_RETURNTOMENU, 0, 0);
 	exit(1);
@@ -140,58 +100,4 @@ void Sys_Init(void)
 bool AHBRPOT_Patched(void)
 {
 	return (*HW_AHBPROT == 0xFFFFFFFF);
-}
-
-void Sys_SetNeekPath(const char *Path)
-{
-	NeekPath = Path;
-}
-
-bool ModeChecked = false;
-bool DolphinMode = false;
-bool Sys_DolphinMode(void)
-{
-	if(ModeChecked)
-		return DolphinMode;
-
-	/* Thanks to skidau for that code! */
-	u32 ifpr11 = 0x12345678;
-	u32 ifpr12 = 0x9abcdef0;
-	u32 ofpr1 = 0x00000000;
-	u32 ofpr2 = 0x00000000;
-	asm volatile (
-		"lwz 3,%[ifpr11]\n\t"
-		"stw 3,8(1)\n\t"
-		"lwz 3,%[ifpr12]\n\t"
-		"stw 3,12(1)\n\t"
-
-		"lfd 1,8(1)\n\t"
-		"frsqrte	1, 1\n\t"
-		"stfd 	1,8(1)\n\t"
-
-		"lwz 	3,8(1)\n\t" 
-		"stw	3, %[ofpr1]\n\t"
-		"lwz 	3,12(1)\n\t" 
-		"stw	3, %[ofpr2]\n\t"
-
-		:
-		 [ofpr1]"=m" (ofpr1)
-		,[ofpr2]"=m" (ofpr2)
-		:
-		 [ifpr11]"m" (ifpr11)
-		,[ifpr12]"m" (ifpr12)
-
-	);
-	if(ofpr1 != 0x56cc62b2)
-	{
-		gprintf("Dolphin-Emu\n");
-		DolphinMode = true;
-	}
-	else
-	{
-		gprintf("Real Wii\n");
-		DolphinMode = false;
-	}
-	ModeChecked = true;
-	return DolphinMode;
 }

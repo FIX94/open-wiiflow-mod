@@ -27,11 +27,9 @@
 #include <string.h>
 #include <unistd.h>
 #include <errno.h>
+#include "gecko.hpp"
 #include "wifi_gecko.hpp"
 #include "loader/utils.h"
-
-/* set to use TCP socket instead of UDP */
-//#define WIFI_GECKO_USE_TCP 1
 
 WifiGecko WiFiDebugger;
 
@@ -59,6 +57,7 @@ void WifiGecko::Init(const char *ip, const u16 port)
 
 void WifiGecko::Close()
 {
+	gprintf("Closing Wifi Gecko\n");
     if(connection >= 0)
         net_close(connection);
 
@@ -78,13 +77,8 @@ int WifiGecko::Connect()
 
 	int tmp_con = -1;
 	memset(&connect_addr, 0, sizeof(connect_addr));
-#ifdef WIFI_GECKO_USE_TCP
-	connect_addr.sin_family = PF_INET;
-    tmp_con = net_socket(connect_addr.sin_family, SOCK_STREAM, 0);
-#else
 	connect_addr.sin_family = AF_INET;
     tmp_con = net_socket(connect_addr.sin_family, SOCK_DGRAM, IPPROTO_IP);
-#endif
     if(tmp_con < 0)
         return -3;
 

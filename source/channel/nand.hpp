@@ -8,8 +8,6 @@
 #include <iostream>
 #include <string>
 
-#include "loader/disc.h"
-
 #define REAL_NAND	0
 #define EMU_SD		1
 #define EMU_USB		2
@@ -75,8 +73,8 @@ public:
 	void Set_SSMode(bool ssmode) { FullMode = ssmode ? 0x60 : 0; };
 
 	void Patch_AHB();
-	void Init_ISFS();
-	void DeInit_ISFS(bool KeepPatches = false);
+	void Init_ISFS(bool iosOK);
+	void DeInit_ISFS();
 
 	const char *Get_NandPath(void) { return NandPath; };
 	u32 Get_Partition(void) { return Partition; };
@@ -87,7 +85,6 @@ public:
 	void SetPaths(const char *emuPath, const char *currentPart);
 
 	void CreatePath(const char *path, ...);
-	void CreateTitleTMD(dir_discHdr *hdr);
 	s32 CreateConfig();
 
 	s32 PreNandCfg(bool miis, bool realconfig);
