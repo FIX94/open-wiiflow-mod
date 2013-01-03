@@ -461,7 +461,7 @@ static GXRModeObj * FindVideoMode()
 		default:
 			mode = VIDEO_GetPreferredMode(NULL);
 			
-			if(mode == &TVPal576IntDfScale)
+			if(mode == &TVPal574IntDfScale)
 				mode = &TVPal528IntDf;
 
 			#ifdef HW_DOL

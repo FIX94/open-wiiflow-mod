@@ -400,7 +400,7 @@ static GXRModeObj * FindVideoMode()
 			mode = &TVNtsc480Prog;
 			break;
 		case 3: // PAL (50Hz)
-			mode = &TVPal576IntDfScale;
+			mode = &TVPal574IntDfScale;
 			break;
 		case 4: // PAL (60Hz)
 			mode = &TVEurgb60Hz480IntDf;
