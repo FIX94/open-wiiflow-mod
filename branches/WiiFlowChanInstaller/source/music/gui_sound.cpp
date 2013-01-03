@@ -28,7 +28,6 @@
 #include <malloc.h>
 #include "gui_sound.h"
 #include "SoundHandler.hpp"
-#include "MusicPlayer.hpp"
 #include "WavDecoder.hpp"
 #include "loader/sys.h"
 #include "memory/mem2.hpp"

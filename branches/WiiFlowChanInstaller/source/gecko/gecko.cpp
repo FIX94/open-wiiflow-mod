@@ -86,7 +86,7 @@ static void WriteToFile(const char* tmp, size_t len)
 	if(sd_inited == false)
 		return;
 
-	FILE *outfile = fopen("sd:/wiiflow.log", "a");
+	FILE *outfile = fopen("sd:/chan_install.log", "a");
 	if(outfile)
 	{
 		fwrite(sdwritebuffer, 1, strlen(sdwritebuffer), outfile);

@@ -115,14 +115,20 @@ static void InstallChannel(InstallableChannel &CurrentChan, void *menu)
 	signed_blob *certBuffer = (signed_blob*)ISFS_GetFile(ISFS_Path, &certSize, -1);
 	if(certBuffer == NULL || certSize == 0)
 		goto error;
+	gprintf("got cert\n");
 	IncreaseStatus(InstallStatus, menu);
+	if(CurrentTMD->num_contents != 3)
+		goto error;
+	gprintf("content ok\n");
 	/* Install Ticket and TMD */
 	ret = ES_AddTicket(CurrentChan.Tik, CurrentChan.TikSize, certBuffer, certSize, NULL, 0);
 	if(ret < 0)
 		goto error;
+	gprintf("tik added\n");
 	ret = ES_AddTitleStart(CurrentChan.TMD, CurrentChan.TMDSize, certBuffer, certSize, NULL, 0);
 	if(ret < 0)
 		goto error;
+	gprintf("begin install title\n");
 	IncreaseStatus(InstallStatus, menu);
 	/* Begin our real App Install */
 	getTitleKey(CurrentChan.Tik, chTitleKey);
@@ -130,7 +136,10 @@ static void InstallChannel(InstallableChannel &CurrentChan, void *menu)
 	for(u16 i = 0; i < CurrentTMD->num_contents; i++)
 	{
 		if(CurrentChan.Data[i].AppSize == CurrentTMD->contents[i].size)
+		{
+			gprintf("begin add content %i\n", i);
 			ret = ES_AddContentStart(CurrentTMD->title_id, CurrentTMD->contents[i].cid);
+		}
 		else
 			ret = -1;
 		/* Content should be alright, lets go */
@@ -153,6 +162,7 @@ static void InstallChannel(InstallableChannel &CurrentChan, void *menu)
 					written_content += ALIGN(16, read_content);
 			}
 			ret = ES_AddContentFinish(fd);
+			gprintf("end add content\n");
 		}
 		if(ret < 0)
 			goto error;

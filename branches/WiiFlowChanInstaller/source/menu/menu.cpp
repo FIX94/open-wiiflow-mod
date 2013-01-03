@@ -626,9 +626,6 @@ void CMenu::_mainLoopCommon()
 
 	if(Sys_Exiting())
 		m_exit = true;
-
-	MusicPlayer.Tick(m_video_playing || (m_gameSelected && 
-		m_gameSound.IsLoaded()) ||  m_gameSound.IsPlaying());
 }
 
 void CMenu::_setBg(const TexData &tex, const TexData &lqTex)
@@ -763,18 +760,6 @@ const wstringEx CMenu::_fmt(const char *key, const wchar_t *def)
 
 void CMenu::_stopSounds(void)
 {
-	// Fade out sounds
-	int fade_rate = 8;
-	if(!MusicPlayer.IsStopped())
-	{
-		while(MusicPlayer.GetVolume() > 0 || m_gameSound.GetVolume() > 0)
-		{
-			MusicPlayer.Tick(true);
-			if(m_gameSound.GetVolume() > 0)
-				m_gameSound.SetVolume(m_gameSound.GetVolume() < fade_rate ? 0 : m_gameSound.GetVolume() - fade_rate);
-			VIDEO_WaitVSync();
-		}
-	}
 	m_btnMgr.stopSounds();
 }
 

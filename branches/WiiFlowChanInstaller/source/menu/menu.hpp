@@ -15,7 +15,6 @@
 #include "gui/gui.hpp"
 #include "loader/sys.h"
 #include "music/gui_sound.h"
-#include "music/MusicPlayer.hpp"
 #include "wiiuse/wpad.h"
 
 using namespace std;
