@@ -1,8 +1,10 @@
 
 #include <ogc/system.h>
+#include <sdcard/wiisd_io.h>
 #include <unistd.h>
 #include <errno.h>
 #include <network.h>
+#include <fat.h>
 #include "const_str.hpp"
 #include "channel/nand.hpp"
 #include "gecko/gecko.hpp"
@@ -34,6 +36,10 @@ int main()
 		iosOK = NandHandle.LoadDefaultIOS();
 	NandHandle.Init_ISFS(iosOK);
 
+	__io_wiisd.startup();
+	fatMountSimple("sd", &__io_wiisd);
+	LogToSD_SetBuffer(true);
+
 	Sys_Init();
 	Open_Inputs();
 	mainMenu.init();
@@ -43,5 +49,8 @@ int main()
 	NandHandle.DeInit_ISFS();
 	WDVD_Close();
 	Sys_Exit();
+
+	fatUnmount("sd");
+	__io_wiisd.shutdown();
 	return 0;
 }

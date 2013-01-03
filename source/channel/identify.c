@@ -54,12 +54,6 @@ const u8 Kill_AntiSysTitleInstallv3_pt2_patch[] = { 0x46, 0xC0, 0x33, 0x06, 0x42
 const u8 Kill_AntiSysTitleInstallv3_pt3_old[] = { 0x68, 0xFB, 0x2B, 0x00, 0xDB, 0x01 };
 const u8 Kill_AntiSysTitleInstallv3_pt3_patch[] = { 0x68, 0xFB, 0x2B, 0x00, 0xDB, 0x10 };
 
-/* vWii IOS58 Specific */
-const u8 IgnoreKKeyPt1OriginalBytes[] = { 0x78, 0x1B, 0x2B, 0x01, 0xD9, 0x01 };
-const u8 IgnoreKKeyPt1NewBytes[] = { 0x78, 0x1B, 0x2B, 0x01, 0xE0, 0x01 };
-const u8 IgnoreKKeyPt2OriginalBytes[] = { 0x4A, 0x37, 0x58, 0x9A };
-const u8 IgnoreKKeyPt2NewBytes[] = { 0x4A, 0x37, 0x22, 0x04 };
-
 void PatchIOS(bool enable)
 {
 	/* Disable memory protection */
@@ -74,9 +68,6 @@ void PatchIOS(bool enable)
 	apply_patch("vwii_patch_ptr1", Kill_AntiSysTitleInstallv3_pt1_old, Kill_AntiSysTitleInstallv3_pt1_patch, sizeof(Kill_AntiSysTitleInstallv3_pt1_patch), enable);
 	apply_patch("vwii_patch_ptr2", Kill_AntiSysTitleInstallv3_pt2_old, Kill_AntiSysTitleInstallv3_pt2_patch, sizeof(Kill_AntiSysTitleInstallv3_pt2_patch), enable);
 	apply_patch("vwii_patch_ptr3", Kill_AntiSysTitleInstallv3_pt3_old, Kill_AntiSysTitleInstallv3_pt3_patch, sizeof(Kill_AntiSysTitleInstallv3_pt3_patch), enable);
-	/* vWii IOS58 Specific */
-	apply_patch("vwii_ignore_kk_ptr1", IgnoreKKeyPt1OriginalBytes, IgnoreKKeyPt1NewBytes, sizeof(IgnoreKKeyPt1NewBytes), enable);
-	apply_patch("vwii_ignore_kk_ptr2", IgnoreKKeyPt2OriginalBytes, IgnoreKKeyPt2NewBytes, sizeof(IgnoreKKeyPt2NewBytes), enable);
 	/* Enable memory protection */
 	write16(MEM_PROT, 1);
 }
