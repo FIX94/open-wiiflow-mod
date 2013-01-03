@@ -243,6 +243,7 @@ WindowPrompt(const char *title, const char *msg, const char *btn1Label, const ch
 static void *
 EmulatorUpdate (void *arg)
 {
+	return NULL;
 	bool installUpdate = WindowPrompt(
 		"Update Available",
 		"An update is available!",
