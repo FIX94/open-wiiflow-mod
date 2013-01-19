@@ -28,12 +28,16 @@
 
 static inline void* ntfs_alloc (size_t size)
 {
-    return MEM2_alloc(size);
+	return MEM2_lo_alloc(size);
 }
 
 static inline void* ntfs_align (size_t size)
 {
-    return MEM2_alloc(size);
+	return MEM2_lo_alloc(size);
+}
+
+static inline void* ntfs_realloc (void *p, size_t size) {
+	return MEM2_lo_realloc(p, size);
 }
 
 static inline void ntfs_free (void* mem)
