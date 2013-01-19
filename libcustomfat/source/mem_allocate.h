@@ -35,16 +35,15 @@
 #include "mem2.h"
 
 static inline void* _FAT_mem_allocate (size_t size) {
-	return MEM2_alloc(size);
+	return MEM2_lo_alloc(size);
 }
 
 static inline void* _FAT_mem_align (size_t size) {
-	return MEM2_alloc(size);
+	return MEM2_lo_alloc(size);
 }
 
 static inline void _FAT_mem_free (void* mem) {
-    //using normal free, it will decide which free to use (just to be on the safe side)
-    free(mem);
+	MEM2_lo_free(mem);
 }
 
 #endif // _MEM_ALLOCATE_H
