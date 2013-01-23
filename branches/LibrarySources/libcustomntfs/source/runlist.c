@@ -108,7 +108,7 @@ static runlist_element *ntfs_rl_realloc(runlist_element *rl, int old_size,
 	new_size = (new_size * sizeof(runlist_element) + 0xfff) & ~0xfff;
 	if (old_size == new_size)
 		return rl;
-	return realloc(rl, new_size);
+	return ntfs_realloc(rl, new_size);
 }
 
 /*
@@ -836,7 +836,7 @@ static runlist_element *ntfs_mapping_pairs_decompress_i(const ntfs_volume *vol,
 			runlist_element *rl2;
 
 			rlsize += 0x1000;
-			rl2 = realloc(rl, rlsize);
+			rl2 = ntfs_realloc(rl, rlsize);
 			if (!rl2) {
 				int eo = errno;
 				free(rl);
@@ -2054,7 +2054,7 @@ static void test_rl_zero(void)
 	runlist_element *jim = NULL;
 	runlist_element *bob = NULL;
 
-	bob = calloc(3, sizeof(runlist_element));
+	bob = ntfs_calloc(3, sizeof(runlist_element));
 	if (!bob)
 		return;
 

@@ -365,7 +365,7 @@ int ntfs_inode_real_close(ntfs_inode *ni)
 			 */
 			if (base_ni->nr_extents) {
 				/* Resize the memory buffer. */
-				tmp_nis = realloc(tmp_nis, base_ni->nr_extents *
+				tmp_nis = ntfs_realloc(tmp_nis, base_ni->nr_extents *
 						  sizeof(ntfs_inode *));
 				/* Ignore errors, they don't really matter. */
 				if (tmp_nis)
@@ -1148,7 +1148,7 @@ int ntfs_inode_add_attrlist(ntfs_inode *ni)
 					ctx->attr->name_length + 7) & ~7;
 		al_len += ale_size;
 		
-		aln = realloc(al, al_len);
+		aln = ntfs_realloc(al, al_len);
 		if (!aln) {
 			err = errno;
 			ntfs_log_perror("Failed to realloc %d bytes", al_len);
