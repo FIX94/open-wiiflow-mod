@@ -102,6 +102,14 @@ struct ext2_inode *ext2fs_file_get_inode(ext2_file_t file)
 	return file->inode;
 }
 
+/* This function returns the inode number from the structure */
+ext2_ino_t ext2fs_file_get_inode_num(ext2_file_t file)
+{
+	if (file->magic != EXT2_ET_MAGIC_EXT2_FILE)
+		return 0;
+	return file->ino;
+}
+
 /*
  * This function flushes the dirty block buffer out to disk if
  * necessary.
@@ -330,7 +338,7 @@ errcode_t ext2fs_file_llseek(ext2_file_t file, __u64 offset,
 errcode_t ext2fs_file_lseek(ext2_file_t file, ext2_off_t offset,
 			    int whence, ext2_off_t *ret_pos)
 {
-	__u64		loffset, ret_loffset;
+	__u64		loffset, ret_loffset = 0;
 	errcode_t	retval;
 
 	loffset = offset;
@@ -392,7 +400,7 @@ errcode_t ext2fs_file_set_size2(ext2_file_t file, ext2_off64_t size)
 			return retval;
 	}
 
-	if (truncate_block <= old_truncate)
+	if (truncate_block >= old_truncate)
 		return 0;
 
 	return ext2fs_punch(file->fs, file->ino, file->inode, 0,

@@ -385,7 +385,7 @@ int tdb_brlock_upgrade(struct tdb_context *tdb, tdb_off_t offset, size_t len)
 {
 	int count = 1000;
 	while (count--) {
-		struct timeval tv;
+		//struct timeval tv;
 		if (tdb_brlock(tdb, offset, F_WRLCK, F_SETLKW, 1, len) == 0) {
 			return 0;
 		}
@@ -393,8 +393,8 @@ int tdb_brlock_upgrade(struct tdb_context *tdb, tdb_off_t offset, size_t len)
 			break;
 		}
 		/* sleep for as short a time as we can - more portable than usleep() */
-		tv.tv_sec = 0;
-		tv.tv_usec = 1;
+		//tv.tv_sec = 0;
+		//tv.tv_usec = 1;
 #ifdef HAVE_SYS_SELECT_H
 		select(0, NULL, NULL, NULL, &tv);
 #endif

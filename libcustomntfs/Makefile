@@ -1,36 +1,106 @@
+#---------------------------------------------------------------------------------
+# Clear the implicit built in rules
+#---------------------------------------------------------------------------------
+.SUFFIXES:
+#---------------------------------------------------------------------------------
+ifeq ($(strip $(DEVKITPPC)),)
+$(error "Please set DEVKITPPC in your environment. export DEVKITPPC=<path to>devkitPPC")
+endif
 
-default: cube-release wii-release
+include $(DEVKITPPC)/wii_rules
 
-all: debug release
+#---------------------------------------------------------------------------------
+# BUILD is the directory where object files & intermediate files will be placed
+# SOURCES is a list of directories containing source code
+# INCLUDES is a list of directories containing extra header files
+#---------------------------------------------------------------------------------
+BUILD		?=	wii_release
+SOURCES		:=	source
+INCLUDES	:=	include
+LIBDIR		:=	lib
 
-debug: cube-debug wii-debug
+#---------------------------------------------------------------------------------
+# options for code generation
+#---------------------------------------------------------------------------------
+CFLAGS		=	-g -ggdb -O2 -Wall $(MACHDEP) $(INCLUDE) -DHAVE_CONFIG_H
+CXXFLAGS	=	$(CFLAGS)
+ASFLAGS		:=	-g
+export LIB	:= $(LIBDIR)/libcustomntfs.a
 
-release: cube-release wii-release
+#---------------------------------------------------------------------------------
+# any extra libraries we wish to link with the project
+#---------------------------------------------------------------------------------
+LIBS		:=
 
-cube-debug:
-	$(MAKE) -C source PLATFORM=cube BUILD=cube_debug
+#---------------------------------------------------------------------------------
+# list of directories containing libraries, this must be the top level containing
+# include and lib
+#---------------------------------------------------------------------------------
+LIBDIRS		:=
 
-wii-debug:
-	$(MAKE) -C source  PLATFORM=wii BUILD=wii_debug
+#---------------------------------------------------------------------------------
+# no real need to edit anything past this point unless you need to add additional
+# rules for different file extensions
+#---------------------------------------------------------------------------------
+ifneq ($(BUILD),$(notdir $(CURDIR)))
+#---------------------------------------------------------------------------------
 
-cube-release:
-	$(MAKE) -C source  PLATFORM=cube BUILD=cube_release
+export DEPSDIR	:=	$(CURDIR)/$(BUILD)
 
-wii-release:
-	$(MAKE) -C source  PLATFORM=wii BUILD=wii_release
+export VPATH	:=	$(foreach dir,$(SOURCES),$(CURDIR)/$(dir)) \
+			$(foreach dir,$(DATA),$(CURDIR)/$(dir))
 
-clean: 
-	$(MAKE) -C source clean
+CFILES		:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.c)))
+CPPFILES	:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.cpp)))
+SFILES		:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.s)))
+BINFILES	:=	$(foreach dir,$(DATA),$(notdir $(wildcard $(dir)/*.*)))
 
-cube-install: cube-release
-	$(MAKE) -C source cube-install PLATFORM=cube
 
-wii-install: wii-release
-	$(MAKE) -C source wii-install PLATFORM=wii
+export OFILES	:=	$(addsuffix .o,$(BINFILES)) \
+			$(CPPFILES:.cpp=.o) $(CFILES:.c=.o) $(SFILES:.s=.o)
 
-install: wii-install
+export INCLUDE	:=	$(foreach dir,$(INCLUDES),-I$(CURDIR)/$(dir)) \
+			$(foreach dir,$(LIBDIRS),-I$(dir)/include) \
+			$(foreach dir,$(LIBDIRS),-I$(dir)/include) \
+			-I$(CURDIR)/$(BUILD) \
+			-I$(LIBOGC_INC)
 
-run: install
-	$(MAKE) -C example
-	$(MAKE) -C example run
+export LIBPATHS	:=	$(foreach dir,$(LIBDIRS),-L$(dir)/lib) \
+			-L$(LIBOGC_LIB)
+
+.PHONY: $(BUILD) clean
+
+#---------------------------------------------------------------------------------
+$(BUILD):
+	@[ -d $@ ] || mkdir -p $@
+	@$(MAKE) --no-print-directory -C $(BUILD) -f $(CURDIR)/Makefile
+
+#---------------------------------------------------------------------------------
+clean:
+	@echo clean ...
+	@rm -fr wii_release $(LIBDIR)
+
+all: $(LIB)
+
+#---------------------------------------------------------------------------------
+else
+
+DEPENDS	:=	$(OFILES:.o=.d)
+
+#---------------------------------------------------------------------------------
+# main targets
+#---------------------------------------------------------------------------------
+$(LIB): $(OFILES) $(LIBDIR)/$(PLATFORM)
+	@rm -f "../$(LIB)"
+	@$(AR) rcs "../$(LIB)" $(OFILES)
+	@echo built ... $(notdir $@)
+
+$(LIBDIR)/$(PLATFORM):
+	mkdir -p ../$(LIBDIR)/$(PLATFORM)
+
+-include $(DEPENDS)
+
+#---------------------------------------------------------------------------------------
+endif
+#---------------------------------------------------------------------------------------
 

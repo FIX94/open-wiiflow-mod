@@ -56,6 +56,7 @@ struct struct_io_channel {
 	long		reserved[14];
 	void		*private_data;
 	void		*app_data;
+	int		align;
 };
 
 struct struct_io_stats {
@@ -119,6 +120,8 @@ extern errcode_t io_channel_write_blk64(io_channel channel,
 extern errcode_t io_channel_discard(io_channel channel,
 				    unsigned long long block,
 				    unsigned long long count);
+extern errcode_t io_channel_alloc_buf(io_channel channel,
+				      int count, void *ptr);
 
 /* unix_io.c */
 extern io_manager unix_io_manager;

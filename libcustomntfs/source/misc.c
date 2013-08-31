@@ -34,7 +34,6 @@
 #include "types.h"
 #include "misc.h"
 #include "logging.h"
-#include "mem2.h"
 
 /**
  * ntfs_calloc

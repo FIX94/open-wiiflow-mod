@@ -36,6 +36,8 @@
 #endif
 #endif
 
+#undef _SC_PAGESIZE
+
 #include "ext2_fs.h"
 #include "ext2fs.h"
 
@@ -59,6 +61,32 @@ errcode_t ext2fs_get_device_sectsize(const char *file, int *sectsize)
 	*sectsize = 0;
 	close(fd);
 	return 0;
+}
+
+/*
+ * Return desired alignment for direct I/O
+ */
+int ext2fs_get_dio_alignment(int fd)
+{
+	int align = 0;
+
+#ifdef BLKSSZGET
+	if (ioctl(fd, BLKSSZGET, &align) < 0)
+		align = 0;
+#endif
+
+#ifdef _SC_PAGESIZE
+	if (align <= 0)
+		align = sysconf(_SC_PAGESIZE);
+#endif
+#ifdef HAVE_GETPAGESIZE
+	if (align <= 0)
+		align = getpagesize();
+#endif
+	if (align <= 0)
+		align = 4096;
+
+	return align;
 }
 
 /*
