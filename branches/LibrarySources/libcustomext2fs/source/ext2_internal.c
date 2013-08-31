@@ -153,6 +153,7 @@ const devoptab_t *ext2GetDevice (const char *path)
         }
     }
 
+	errno = ENXIO;
     return NULL;
 }
 
@@ -277,10 +278,7 @@ ext2_inode_t *ext2OpenEntry (ext2_vd *vd, const char *path)
     // Get the actual path of the entry
     path = ext2RealPath(path);
     if (!path)
-    {
-        errno = EINVAL;
         return NULL;
-    }
 
     ni = mem_alloc(sizeof(ext2_inode_t));
     if(!ni)
@@ -295,6 +293,7 @@ ext2_inode_t *ext2OpenEntry (ext2_vd *vd, const char *path)
     ni->ino = ext2PathToInode(vd, path);
     if(ni->ino == 0)
     {
+        errno = ENOENT;
         mem_free(ni);
         return NULL;
     }
@@ -302,6 +301,7 @@ ext2_inode_t *ext2OpenEntry (ext2_vd *vd, const char *path)
     errorcode = ext2fs_read_inode(vd->fs, ni->ino, &ni->ni);
     if(errorcode)
     {
+        errno = EFAULT;
         mem_free(ni);
         return NULL;
     }
@@ -346,20 +346,23 @@ static ext2_ino_t ext2CreateSymlink(ext2_vd *vd, const char *path, const char * 
         goto cleanup;
 
     int err = ext2fs_new_inode(vd->fs, target_ni->ino, type, 0, &ino);
-    if (err)
+    if (err) {
+		errno = EFAULT;
         goto cleanup;
-
-    do
-    {
-        err = ext2fs_link(vd->fs, target_ni->ino, name, ino, EXT2_FT_SYMLINK);
-        if (err == EXT2_ET_DIR_NO_SPACE)
-        {
-            err = ext2fs_expand_dir(vd->fs, target_ni->ino);
-            if (err)
-                goto cleanup;
-        }
     }
-    while(err == EXT2_ET_DIR_NO_SPACE);
+
+    while((err = ext2fs_link(vd->fs, target_ni->ino, name, ino, EXT2_FT_SYMLINK)) == EXT2_ET_DIR_NO_SPACE)
+    {
+		if (ext2fs_expand_dir(vd->fs, target_ni->ino) != EXT2_ET_OK) {
+			errno = EMLINK;
+			goto cleanup;
+		}
+    }
+
+    if(err != EXT2_ET_OK) {
+		errno = EMLINK;
+        return 0;
+    }
 
     ext2fs_inode_alloc_stats2(vd->fs, ino, +1, 0);
 
@@ -413,26 +416,29 @@ static ext2_ino_t ext2CreateMkDir(ext2_vd *vd, ext2_inode_t * parent, int type, 
     ext2_ino_t newentry = 0;
     ext2_ino_t existing;
 
-    if(ext2fs_namei(vd->fs, vd->root, parent->ino, name, &existing) == 0)
+    if(ext2fs_namei_follow(vd->fs, vd->root, parent->ino, name, &existing) == 0){
+		errno = EEXIST;
         return 0;
+    }
 
     errcode_t err = ext2fs_new_inode(vd->fs, parent->ino, type, 0, &newentry);
-    if(err != EXT2_ET_OK)
+    if(err != EXT2_ET_OK) {
+		errno = EFAULT;
         return 0;
-
-    do
-    {
-        err = ext2fs_mkdir(vd->fs, parent->ino, newentry, name);
-        if(err == EXT2_ET_DIR_NO_SPACE)
-        {
-            if(ext2fs_expand_dir(vd->fs, parent->ino) != 0)
-                return 0;
-        }
     }
-    while(err == EXT2_ET_DIR_NO_SPACE);
 
-    if(err != EXT2_ET_OK)
+    while((err = ext2fs_mkdir(vd->fs, parent->ino, newentry, name)) == EXT2_ET_DIR_NO_SPACE)
+    {
+		if(ext2fs_expand_dir(vd->fs, parent->ino) != EXT2_ET_OK) {
+			errno = EMLINK;
+			return 0;
+		}
+    }
+
+    if(err != EXT2_ET_OK) {
+		errno = EMLINK;
         return 0;
+    }
 
     struct ext2_inode inode;
     if(ext2fs_read_inode(vd->fs, newentry, &inode) == EXT2_ET_OK)
@@ -453,26 +459,29 @@ static ext2_ino_t ext2CreateFile(ext2_vd *vd, ext2_inode_t * parent, int type, c
     ext2_ino_t newfile = 0;
     ext2_ino_t existing;
 
-    if(ext2fs_namei(vd->fs, vd->root, parent->ino, name, &existing) == 0)
+    if(ext2fs_namei_follow(vd->fs, vd->root, parent->ino, name, &existing) == 0) {
+		errno = EEXIST;
         return 0;
+    }
 
 	retval = ext2fs_new_inode(vd->fs, parent->ino, type, 0, &newfile);
-	if (retval)
+	if (retval) {
+		errno = EFAULT;
         return 0;
+	}
 
-    do
+    while((retval = ext2fs_link(vd->fs, parent->ino, name, newfile, EXT2_FT_REG_FILE)) == EXT2_ET_DIR_NO_SPACE)
     {
-        retval = ext2fs_link(vd->fs, parent->ino, name, newfile, EXT2_FT_REG_FILE);
-        if (retval == EXT2_ET_DIR_NO_SPACE)
-        {
-            if (ext2fs_expand_dir(vd->fs, parent->ino) != 0)
-                return 0;
-        }
+		if (ext2fs_expand_dir(vd->fs, parent->ino) != EXT2_ET_OK) {
+			errno = EMLINK;
+			return 0;
+		}
     }
-    while(retval == EXT2_ET_DIR_NO_SPACE);
 
-    if (retval)
+    if (retval != EXT2_ET_OK) {
+		errno = EMLINK;
         return 0;
+    }
 
 	ext2fs_inode_alloc_stats2(vd->fs, newfile, +1, 0);
 
@@ -505,8 +514,10 @@ ext2_inode_t *ext2Create(ext2_vd *vd, const char *path, mode_t type, const char 
         return NULL;
     }
 
-    if(!(vd->fs->flags & EXT2_FLAG_RW))
+    if(!(vd->fs->flags & EXT2_FLAG_RW)) {
+        errno = EACCES;
         return NULL;
+    }
 
     // You cannot link between devices
     if(target) {
@@ -517,24 +528,22 @@ ext2_inode_t *ext2Create(ext2_vd *vd, const char *path, mode_t type, const char 
         // Check if existing
         dir_ni = ext2OpenEntry(vd, target);
         if (dir_ni) {
+			errno = EEXIST;
             goto cleanup;
         }
-        ext2CloseEntry(vd, dir_ni);
-        dir_ni = NULL;
         targetdir = strdup(target);
         if (!targetdir) {
-            errno = EINVAL;
+            errno = ENOMEM;
             goto cleanup;
         }
+
+		target = ext2RealPath(target);
     }
 
     // Get the actual paths of the entry
     path = ext2RealPath(path);
-    target = ext2RealPath(target);
-    if (!path) {
-        errno = EINVAL;
-        return NULL;
-    }
+    if (!path)
+		goto cleanup;
 
     // Lock
     ext2Lock(vd);
@@ -543,7 +552,7 @@ ext2_inode_t *ext2Create(ext2_vd *vd, const char *path, mode_t type, const char 
     // NOTE: this looks horrible right now and need a cleanup
     dir = strdup(path);
     if (!dir) {
-        errno = EINVAL;
+        errno = ENOMEM;
         goto cleanup;
     }
 
@@ -559,9 +568,8 @@ ext2_inode_t *ext2Create(ext2_vd *vd, const char *path, mode_t type, const char 
 
     // Open the entries parent directory
     dir_ni = ext2OpenEntry(vd, dir);
-    if (!dir_ni) {
+    if (!dir_ni)
         goto cleanup;
-    }
 
     // If not yet read, read the inode and block bitmap
     if(!vd->fs->inode_map || !vd->fs->block_map)
@@ -659,8 +667,10 @@ int ext2Link(ext2_vd *vd, const char *old_path, const char *new_path)
         return -1;
     }
 
-    if(!(vd->fs->flags & EXT2_FLAG_RW))
+    if(!(vd->fs->flags & EXT2_FLAG_RW)) {
+        errno = EACCES;
         return -1;
+    }
 
     // You cannot link between devices
     if(vd != ext2GetVolume(new_path)) {
@@ -671,10 +681,8 @@ int ext2Link(ext2_vd *vd, const char *old_path, const char *new_path)
     // Get the actual paths of the entry
     old_path = ext2RealPath(old_path);
     new_path = ext2RealPath(new_path);
-    if (!old_path || !new_path) {
-        errno = EINVAL;
+    if (!old_path || !new_path)
         return -1;
-    }
 
     // Lock
     ext2Lock(vd);
@@ -682,15 +690,13 @@ int ext2Link(ext2_vd *vd, const char *old_path, const char *new_path)
     //check for existing in new path
     ni = ext2OpenEntry(vd, new_path);
     if (ni) {
-        ext2CloseEntry(vd, ni);
-        ni = NULL;
-        errno = EINVAL;
-        return -1;
+        errno = EEXIST;
+        goto cleanup;
     }
 
     dir = strdup(new_path);
     if (!dir) {
-        errno = EINVAL;
+        errno = ENOMEM;
         err = -1;
         goto cleanup;
     }
@@ -706,7 +712,6 @@ int ext2Link(ext2_vd *vd, const char *old_path, const char *new_path)
     // Find the entry
     ni = ext2OpenEntry(vd, old_path);
     if (!ni) {
-        errno = ENOENT;
         err = -1;
         goto cleanup;
     }
@@ -714,7 +719,6 @@ int ext2Link(ext2_vd *vd, const char *old_path, const char *new_path)
     // Open the entries new parent directory
     dir_ni = ext2OpenEntry(vd, dir);
     if (!dir_ni) {
-        errno = ENOENT;
         err = -1;
         goto cleanup;
     }
@@ -728,9 +732,9 @@ int ext2Link(ext2_vd *vd, const char *old_path, const char *new_path)
             if (ext2fs_expand_dir(vd->fs, dir_ni->ino) != 0)
                 goto cleanup;
         }
-        else if(err != 0)
+        else if(err != EXT2_ET_OK)
         {
-            errno = ENOMEM;
+            errno = EMLINK;
             goto cleanup;
         }
     }
@@ -819,10 +823,8 @@ int ext2Unlink (ext2_vd *vd, const char *path)
 
     // Get the actual path of the entry
     path = ext2RealPath(path);
-    if (!path) {
-        errno = EINVAL;
+    if (!path)
         return -1;
-    }
 
     // Lock
     ext2Lock(vd);
@@ -843,17 +845,13 @@ int ext2Unlink (ext2_vd *vd, const char *path)
 
     // Find the entry
     ni = ext2OpenEntry(vd, path);
-    if (!ni) {
-        errno = ENOENT;
+    if (!ni)
         goto cleanup;
-    }
 
     // Open the entries parent directory
     dir_ni = ext2OpenEntry(vd, dir);
-    if (!dir_ni) {
-        errno = ENOENT;
+    if (!dir_ni)
         goto cleanup;
-    }
 
     // Directory
     if(LINUX_S_ISDIR(ni->ni.i_mode))
@@ -940,7 +938,6 @@ cleanup:
     return err;
 }
 
-
 int ext2Sync(ext2_vd *vd, ext2_inode_t *ni)
 {
     errcode_t res = 0;
@@ -990,7 +987,7 @@ int ext2Stat (ext2_vd *vd, ext2_inode_t *ni_main, struct stat *st)
 
     // Sanity check
     if (!ni) {
-        errno = ENOENT;
+        errno = EINVAL;
         return -1;
     }
 
@@ -1061,14 +1058,17 @@ void ext2UpdateTimes(ext2_vd *vd, ext2_inode_t *ni, ext2_time_update_flags mask)
 const char *ext2RealPath (const char *path)
 {
     // Sanity check
-    if (!path)
+    if (!path) {
+        errno = EINVAL;
         return NULL;
+    }
 
     // Move the path pointer to the start of the actual path
     if (strchr(path, ':') != NULL) {
         path = strchr(path, ':')+1;
     }
     if (strchr(path, ':') != NULL) {
+        errno = EINVAL;
         return NULL;
     }
 

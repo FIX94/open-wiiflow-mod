@@ -87,6 +87,8 @@ errcode_t ext2fs_open(const char *name, int flags, int superblock,
  *				features aren't supported.
  *	EXT2_FLAG_JOURNAL_DEV_OK - Open an ext3 journal device
  *	EXT2_FLAG_SKIP_MMP - Open without multi-mount protection check.
+ *	EXT2_FLAG_64BITS - Allow 64-bit bitfields (needed for large
+ *				filesystems)
  */
 errcode_t ext2fs_open2(const char *name, const char *io_options,
 		       int flags, int superblock,
@@ -144,7 +146,7 @@ errcode_t ext2fs_open2(const char *name, const char *io_options,
 		goto cleanup;
 	fs->image_io = fs->io;
 	fs->io->app_data = fs;
-	retval = ext2fs_get_memalign(SUPERBLOCK_SIZE, 512, &fs->super);
+	retval = io_channel_alloc_buf(fs->io, -SUPERBLOCK_SIZE, &fs->super);
 	if (retval)
 		goto cleanup;
 	if (flags & EXT2_FLAG_IMAGE_FILE) {
@@ -380,8 +382,12 @@ errcode_t ext2fs_open2(const char *name, const char *io_options,
 			ext2fs_bg_flags_clear(fs, group, EXT2_BG_BLOCK_UNINIT);
 			ext2fs_bg_flags_clear(fs, group, EXT2_BG_INODE_UNINIT);
 			ext2fs_bg_itable_unused_set(fs, group, 0);
+			/* The checksum will be reset later, but fix it here
+			 * anyway to avoid printing a lot of spurious errors. */
+			ext2fs_group_desc_csum_set(fs, group);
 		}
-		ext2fs_mark_super_dirty(fs);
+		if (fs->flags & EXT2_FLAG_RW)
+			ext2fs_mark_super_dirty(fs);
 	}
 
 	fs->flags &= ~EXT2_FLAG_NOFREE_ON_ERROR;

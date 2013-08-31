@@ -389,7 +389,7 @@ errcode_t ext2fs_block_iterate3(ext2_filsys fs,
 
 	if (inode.i_flags & EXT4_EXTENTS_FL) {
 		ext2_extent_handle_t	handle;
-		struct ext2fs_extent	extent;
+		struct ext2fs_extent	extent, next;
 		e2_blkcnt_t		blockcnt = 0;
 		blk64_t			blk, new_blk;
 		int			op = EXT2_EXTENT_ROOT;
@@ -401,7 +401,11 @@ errcode_t ext2fs_block_iterate3(ext2_filsys fs,
 			goto abort_exit;
 
 		while (1) {
-			ctx.errcode = ext2fs_extent_get(handle, op, &extent);
+			if (op == EXT2_EXTENT_CURRENT)
+				ctx.errcode = 0;
+			else
+				ctx.errcode = ext2fs_extent_get(handle, op,
+								&extent);
 			if (ctx.errcode) {
 				if (ctx.errcode != EXT2_ET_EXTENT_NO_NEXT)
 					break;
@@ -414,7 +418,7 @@ errcode_t ext2fs_block_iterate3(ext2_filsys fs,
 						0, 0, priv_data);
 				ret |= r;
 				check_for_ro_violation_goto(&ctx, ret,
-							    extent_errout);
+							    extent_done);
 				if (r & BLOCK_CHANGED) {
 					ctx.errcode =
 						ext2fs_extent_set_bmap(handle,
@@ -448,12 +452,21 @@ errcode_t ext2fs_block_iterate3(ext2_filsys fs,
 						if (ctx.errcode)
 							break;
 					}
+					if (ret & BLOCK_ABORT)
+						break;
 				}
 				continue;
 			}
 			uninit = 0;
 			if (extent.e_flags & EXT2_EXTENT_FLAGS_UNINIT)
 				uninit = EXT2_EXTENT_SET_BMAP_UNINIT;
+
+			/* 
+			 * Get the next extent before we start messing
+			 * with the current extent
+			 */
+			retval = ext2fs_extent_get(handle, op, &next);
+
 #if 0
 			printf("lblk %llu pblk %llu len %d blockcnt %llu\n",
 			       extent.e_lblk, extent.e_pblk,
@@ -473,23 +486,27 @@ errcode_t ext2fs_block_iterate3(ext2_filsys fs,
 						0, 0, priv_data);
 				ret |= r;
 				check_for_ro_violation_goto(&ctx, ret,
-							    extent_errout);
+							    extent_done);
 				if (r & BLOCK_CHANGED) {
 					ctx.errcode =
 						ext2fs_extent_set_bmap(handle,
 						       (blk64_t) blockcnt,
 						       new_blk, uninit);
 					if (ctx.errcode)
-						goto extent_errout;
+						goto extent_done;
 				}
 				if (ret & BLOCK_ABORT)
-					break;
+					goto extent_done;
+			}
+			if (retval == 0) {
+				extent = next;
+				op = EXT2_EXTENT_CURRENT;
 			}
 		}
 
-	extent_errout:
+	extent_done:
 		ext2fs_extent_free(handle);
-		ret |= BLOCK_ERROR | BLOCK_ABORT;
+		ret |= BLOCK_ERROR; /* ctx.errcode is always valid here */
 		goto errout;
 	}
 

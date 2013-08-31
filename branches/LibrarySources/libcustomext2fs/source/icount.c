@@ -104,12 +104,12 @@ static errcode_t alloc_icount(ext2_filsys fs, int flags, ext2_icount_t *ret)
 		return retval;
 	memset(icount, 0, sizeof(struct ext2_icount));
 
-	retval = ext2fs_allocate_inode_bitmap(fs, 0, &icount->single);
+	retval = ext2fs_allocate_inode_bitmap(fs, "icount", &icount->single);
 	if (retval)
 		goto errout;
 
 	if (flags & EXT2_ICOUNT_OPT_INCREMENT) {
-		retval = ext2fs_allocate_inode_bitmap(fs, 0,
+		retval = ext2fs_allocate_inode_bitmap(fs, "icount_inc",
 						      &icount->multiple);
 		if (retval)
 			goto errout;
@@ -351,9 +351,7 @@ static struct ext2_icount_el *insert_icount_el(ext2_icount_t icount,
 static struct ext2_icount_el *get_icount_el(ext2_icount_t icount,
 					    ext2_ino_t ino, int create)
 {
-	float	range;
 	int	low, high, mid;
-	ext2_ino_t	lowval, highval;
 
 	if (!icount || !icount->list)
 		return 0;

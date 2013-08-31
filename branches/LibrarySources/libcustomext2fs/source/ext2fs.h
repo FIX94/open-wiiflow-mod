@@ -29,10 +29,6 @@ extern "C" {
 #define NO_INLINE_FUNCS
 #endif
 
-#ifndef _XOPEN_SOURCE
-#define _XOPEN_SOURCE 600	/* for posix_memalign() */
-#endif
-
 /*
  * Where the master copy of the superblock is located, and how big
  * superblocks are supposed to be.  We define SUPERBLOCK_SIZE because
@@ -198,6 +194,7 @@ typedef struct ext2_file *ext2_file_t;
  */
 #define EXT2_MKJOURNAL_V1_SUPER	0x0000001 /* create V1 superblock (deprecated) */
 #define EXT2_MKJOURNAL_LAZYINIT	0x0000002 /* don't zero journal inode before use*/
+#define EXT2_MKJOURNAL_NO_MNT_CHECK 0x0000004 /* don't check mount status */
 
 struct opaque_ext2_group_desc;
 
@@ -231,10 +228,12 @@ struct struct_ext2_filsys {
 	__u32				umask;
 	time_t				now;
 	int				cluster_ratio_bits;
+	__u16				default_bitmap_type;
+	__u16				pad;
 	/*
 	 * Reserved for future expansion
 	 */
-	__u32				reserved[6];
+	__u32				reserved[5];
 
 	/*
 	 * Reserved for the use of the calling application.
@@ -268,6 +267,13 @@ struct struct_ext2_filsys {
 };
 
 #include "bitops.h"
+
+/*
+ * 64-bit bitmap backend types
+ */
+#define EXT2FS_BMAP64_BITARRAY	1
+#define EXT2FS_BMAP64_RBTREE	2
+#define EXT2FS_BMAP64_AUTODIR	3
 
 /*
  * Return flags for the block iterator functions
@@ -582,7 +588,7 @@ typedef struct ext2_icount *ext2_icount_t;
  * to ext2fs_openfs()
  */
 #define EXT2_LIB_SOFTSUPP_INCOMPAT	(0)
-#define EXT2_LIB_SOFTSUPP_RO_COMPAT	(EXT4_FEATURE_RO_COMPAT_BIGALLOC)
+#define EXT2_LIB_SOFTSUPP_RO_COMPAT	(EXT4_FEATURE_RO_COMPAT_REPLICA)
 
 
 /* Translate a block number to a cluster number */
@@ -919,6 +925,7 @@ extern __u32 ext2fs_crc32c_le(__u32 crc, unsigned char const *p, size_t len);
 extern void ext2fs_group_desc_csum_set(ext2_filsys fs, dgrp_t group);
 extern int ext2fs_group_desc_csum_verify(ext2_filsys fs, dgrp_t group);
 extern errcode_t ext2fs_set_gdt_csum(ext2_filsys fs);
+extern __u16 ext2fs_group_desc_csum(ext2_filsys fs, dgrp_t group);
 
 /* dblist.c */
 
@@ -1075,6 +1082,7 @@ extern errcode_t ext2fs_file_open(ext2_filsys fs, ext2_ino_t ino,
 				  int flags, ext2_file_t *ret);
 extern ext2_filsys ext2fs_file_get_fs(ext2_file_t file);
 struct ext2_inode *ext2fs_file_get_inode(ext2_file_t file);
+extern ext2_ino_t ext2fs_file_get_inode_num(ext2_file_t file);
 extern errcode_t ext2fs_file_close(ext2_file_t file);
 extern errcode_t ext2fs_file_flush(ext2_file_t file);
 extern errcode_t ext2fs_file_read(ext2_file_t file, void *buf,
@@ -1138,8 +1146,15 @@ extern errcode_t ext2fs_set_generic_bitmap_range(ext2fs_generic_bitmap bmap,
 						 errcode_t magic,
 						 __u32 start, __u32 num,
 						 void *in);
+extern errcode_t ext2fs_find_first_zero_generic_bitmap(ext2fs_generic_bitmap bitmap,
+						       __u32 start, __u32 end,
+						       __u32 *out);
 
 /* gen_bitmap64.c */
+
+/* Generate and print bitmap usage statistics */
+/* #define BMAP_STATS */
+
 void ext2fs_free_generic_bmap(ext2fs_generic_bitmap bmap);
 errcode_t ext2fs_alloc_generic_bmap(ext2_filsys fs, errcode_t magic,
 				    int type, __u64 start, __u64 end,
@@ -1175,6 +1190,7 @@ extern errcode_t ext2fs_get_device_size2(const char *file, int blocksize,
 					blk64_t *retblocks);
 
 /* getsectsize.c */
+extern int ext2fs_get_dio_alignment(int fd);
 errcode_t ext2fs_get_device_sectsize(const char *file, int *sectsize);
 errcode_t ext2fs_get_device_phys_sectsize(const char *file, int *sectsize);
 
@@ -1669,40 +1685,6 @@ _INLINE_ __u64 ext2fs_div64_ceil(__u64 a, __u64 b)
 	if (!a)
 		return 0;
 	return ((a - 1) / b) + 1;
-}
-
-_INLINE_ int ext2fs_open_file(const char *pathname, int flags, mode_t mode)
-{
-	va_list args;
-
-	if (mode)
-#if defined(HAVE_OPEN64) && !defined(__OSX_AVAILABLE_BUT_DEPRECATED)
-		return open64(pathname, flags, mode);
-	else
-		return open64(pathname, flags);
-#else
-		return open(pathname, flags, mode);
-	else
-		return open(pathname, flags);
-#endif
-}
-
-_INLINE_ int ext2fs_stat(const char *path, ext2fs_struct_stat *buf)
-{
-#if defined(HAVE_FSTAT64) && !defined(__OSX_AVAILABLE_BUT_DEPRECATED)
-	return stat64(path, buf);
-#else
-	return stat(path, buf);
-#endif
-}
-
-_INLINE_ int ext2fs_fstat(int fd, ext2fs_struct_stat *buf)
-{
-#if defined(HAVE_FSTAT64) && !defined(__OSX_AVAILABLE_BUT_DEPRECATED)
-	return fstat64(fd, buf);
-#else
-	return fstat(fd, buf);
-#endif
 }
 
 #undef _INLINE_

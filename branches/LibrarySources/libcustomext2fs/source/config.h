@@ -15,6 +15,9 @@
 /* Define to 1 if debugging ext3/4 journal code */
 /* #undef CONFIG_JBD_DEBUG */
 
+/* Define to 1 to enable quota support */
+/* #undef CONFIG_QUOTA */
+
 /* Define to 1 if the testio I/O manager should be enabled */
 /* #undef CONFIG_TESTIO_DEBUG 1 */
 
@@ -145,6 +148,9 @@
 /* Define to 1 if you have the `getpagesize' function. */
 /* #undef HAVE_GETPAGESIZE 1 */
 
+/* Define to 1 if you have the `getpwuid_r' function. */
+/* #undef HAVE_GETPWUID_R 1 */
+
 /* Define to 1 if you have the `getrlimit' function. */
 /* #undef HAVE_GETRLIMIT 1 */
 
@@ -239,6 +245,9 @@
 /* Define to 1 if you have the <mntent.h> header file. */
 /* #undef HAVE_MNTENT_H 1 */
 
+/* Define to 1 if you have the `msync' function. */
+/* #undef HAVE_MSYNC 1 */
+
 /* Define to 1 if you have the `munmap' function. */
 /* #undef HAVE_MUNMAP 1 */
 
@@ -284,9 +293,6 @@
 /* Define to 1 if you have the `putenv' function. */
 /* #undef HAVE_PUTENV 1 */
 
-/* Define to 1 if you have the `quotactl' function. */
-/* #undef HAVE_QUOTACTL 1 */
-
 /* Define to 1 if dirent has d_reclen */
 /* #undef HAVE_RECLEN_DIRENT 1 */
 
@@ -307,6 +313,9 @@
 
 /* Define to 1 if you have the `setlocale' function. */
 #define HAVE_SETLOCALE 1
+
+/* Define to 1 if you have the `setmntent' function. */
+/* #undef HAVE_SETMNTENT 1 */
 
 /* Define to 1 if you have the `setresgid' function. */
 /* #undef HAVE_SETRESGID 1 */
@@ -404,9 +413,6 @@
 
 /* Define to 1 if you have the <sys/queue.h> header file. */
 #define HAVE_SYS_QUEUE_H 1
-
-/* Define to 1 if you have the <sys/quota.h> header file. */
-/* #undef HAVE_SYS_QUOTA_H 1 */
 
 /* Define to 1 if you have the <sys/resource.h> header file. */
 #define HAVE_SYS_RESOURCE_H 1

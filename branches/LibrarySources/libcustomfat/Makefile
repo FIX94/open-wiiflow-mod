@@ -1,31 +1,106 @@
-ifeq ($(strip $(DEVKITPRO)),)
-$(error "Please set DEVKITPRO in your environment. export DEVKITPRO=<path to>devkitPro)
+#---------------------------------------------------------------------------------
+# Clear the implicit built in rules
+#---------------------------------------------------------------------------------
+.SUFFIXES:
+#---------------------------------------------------------------------------------
+ifeq ($(strip $(DEVKITPPC)),)
+$(error "Please set DEVKITPPC in your environment. export DEVKITPPC=<path to>devkitPPC")
 endif
- 
-export TOPDIR	:=	$(CURDIR)
- 
-export LIBFAT_MAJOR	:= 1
-export LIBFAT_MINOR	:= 0
-export LIBFAT_PATCH	:= 10
 
-export VERSTRING	:=	$(LIBFAT_MAJOR).$(LIBFAT_MINOR).$(LIBFAT_PATCH)
+include $(DEVKITPPC)/wii_rules
+
+#---------------------------------------------------------------------------------
+# BUILD is the directory where object files & intermediate files will be placed
+# SOURCES is a list of directories containing source code
+# INCLUDES is a list of directories containing extra header files
+#---------------------------------------------------------------------------------
+BUILD		?=	wii_release
+SOURCES		:=	source
+INCLUDES	:=	include
+LIBDIR		:=	lib
+
+#---------------------------------------------------------------------------------
+# options for code generation
+#---------------------------------------------------------------------------------
+CFLAGS		=	-g -ggdb -O2 -Wall $(MACHDEP) $(INCLUDE) -DHAVE_CONFIG_H
+CXXFLAGS	=	$(CFLAGS)
+ASFLAGS		:=	-g
+export LIB	:= $(LIBDIR)/libcustomfat.a
+
+#---------------------------------------------------------------------------------
+# any extra libraries we wish to link with the project
+#---------------------------------------------------------------------------------
+LIBS		:=
+
+#---------------------------------------------------------------------------------
+# list of directories containing libraries, this must be the top level containing
+# include and lib
+#---------------------------------------------------------------------------------
+LIBDIRS		:=
+
+#---------------------------------------------------------------------------------
+# no real need to edit anything past this point unless you need to add additional
+# rules for different file extensions
+#---------------------------------------------------------------------------------
+ifneq ($(BUILD),$(notdir $(CURDIR)))
+#---------------------------------------------------------------------------------
+
+export DEPSDIR	:=	$(CURDIR)/$(BUILD)
+
+export VPATH	:=	$(foreach dir,$(SOURCES),$(CURDIR)/$(dir)) \
+			$(foreach dir,$(DATA),$(CURDIR)/$(dir))
+
+CFILES		:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.c)))
+CPPFILES	:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.cpp)))
+SFILES		:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.s)))
+BINFILES	:=	$(foreach dir,$(DATA),$(notdir $(wildcard $(dir)/*.*)))
 
 
-default: release
+export OFILES	:=	$(addsuffix .o,$(BINFILES)) \
+			$(CPPFILES:.cpp=.o) $(CFILES:.c=.o) $(SFILES:.s=.o)
 
-all: release
+export INCLUDE	:=	$(foreach dir,$(INCLUDES),-I$(CURDIR)/$(dir)) \
+			$(foreach dir,$(LIBDIRS),-I$(dir)/include) \
+			$(foreach dir,$(LIBDIRS),-I$(dir)/include) \
+			-I$(CURDIR)/$(BUILD) \
+			-I$(LIBOGC_INC)
 
-release: include/libfatversion.h wii-release
+export LIBPATHS	:=	$(foreach dir,$(LIBDIRS),-L$(dir)/lib) \
+			-L$(LIBOGC_LIB)
 
-wii-release:
-	$(MAKE) -C libogc PLATFORM=wii BUILD=wii_release
+.PHONY: $(BUILD) clean
 
-clean: ogc-clean
+#---------------------------------------------------------------------------------
+$(BUILD):
+	@[ -d $@ ] || mkdir -p $@
+	@$(MAKE) --no-print-directory -C $(BUILD) -f $(CURDIR)/Makefile
 
-ogc-clean:
-	$(MAKE) -C libogc clean
+#---------------------------------------------------------------------------------
+clean:
+	@echo clean ...
+	@rm -fr wii_release $(LIBDIR)
 
-install: ogc-install
+all: $(LIB)
 
-ogc-install: cube-release wii-release
-	$(MAKE) -C libogc install
+#---------------------------------------------------------------------------------
+else
+
+DEPENDS	:=	$(OFILES:.o=.d)
+
+#---------------------------------------------------------------------------------
+# main targets
+#---------------------------------------------------------------------------------
+$(LIB): $(OFILES) $(LIBDIR)/$(PLATFORM)
+	@rm -f "../$(LIB)"
+	@$(AR) rcs "../$(LIB)" $(OFILES)
+	@echo built ... $(notdir $@)
+
+$(LIBDIR)/$(PLATFORM):
+	mkdir -p ../$(LIBDIR)/$(PLATFORM)
+
+-include $(DEPENDS)
+
+#---------------------------------------------------------------------------------------
+endif
+#---------------------------------------------------------------------------------------
+

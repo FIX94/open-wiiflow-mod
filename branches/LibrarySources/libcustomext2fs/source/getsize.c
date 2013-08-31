@@ -143,12 +143,12 @@ errcode_t ext2fs_get_device_size2(const char *file, int blocksize,
 				 blk64_t *retblocks)
 {
 	int	fd, rc = 0;
-	int valid_blkgetsize64 = 1;
+	//int valid_blkgetsize64 = 1;
 #ifdef __linux__
 	struct 		utsname ut;
 #endif
 	unsigned long long size64;
-	unsigned long	size;
+	//unsigned long	size;
 	ext2_loff_t high, low;
 #ifdef FDGETPRM
 	struct floppy_struct this_floppy;
@@ -183,7 +183,7 @@ errcode_t ext2fs_get_device_size2(const char *file, int blocksize,
 		*retblocks = size64 / blocksize;
 		goto out;
 	}
-#endif
+#endif /* BLKGETSIZE64 */
 
 #ifdef BLKGETSIZE
 	if (ioctl(fd, BLKGETSIZE, &size) >= 0) {
