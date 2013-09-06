@@ -4,17 +4,20 @@
 # provides configuration info for libpng.
 
 # Copyright (C) 2002, 2004, 2006, 2007 Glenn Randers-Pehrson
-# For conditions of distribution and use, see copyright notice in png.h
+
+# This code is released under the libpng license.
+# For conditions of distribution and use, see the disclaimer
+# and license in png.h
 
 # Modeled after libxml-config.
 
-version="1.2.29beta03"
+version="1.6.2"
 prefix="/c/devkitPro/portlibs/ppc"
 exec_prefix="${prefix}"
 libdir="${exec_prefix}/lib"
-includedir="${prefix}/include/libpng12"
-libs="-lpng12"
-all_libs="-lpng12 -lz -lm"
+includedir="${prefix}/include/libpng16"
+libs="-lpng16"
+all_libs="-lpng16 -lz -lm "
 I_opts="-I${includedir}"
 L_opts="-L${libdir}"
 R_opts=""
@@ -101,8 +104,8 @@ while test $# -gt 0; do
         ;;
 
     --ldopts)
-    	echo ${ldopts}
-	;;
+        echo ${ldopts}
+        ;;
 
     --ldflags)
         echo ${ldopts} ${L_opts} ${R_opts} ${libs}
@@ -110,7 +113,7 @@ while test $# -gt 0; do
 
     --static)
         R_opts=""
-	libs=${all_libs}
+        libs=${all_libs}
         ;;
 
     *)
