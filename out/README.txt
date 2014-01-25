@@ -1,1 +1,0 @@
-copy the boot.dol and folders into apps/wiiflow
