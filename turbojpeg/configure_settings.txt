@@ -1,0 +1,1 @@
+./configure --without-simd --without-arith-enc --without-arith-dec --prefix=$DEVKITPRO/portlibs/ppc --host=powerpc-eabi --disable-shared --enable-static
