@@ -197,7 +197,8 @@ UpdatePads()
 	#endif
 
 	now = gettime();
-
+	
+	PAD_ScanPads();
 	if(!padsConnected && diff_sec(prev, now) < 2)
 		return;
 
